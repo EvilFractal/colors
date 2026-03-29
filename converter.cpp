@@ -98,6 +98,8 @@ class Converter:ColorSpaces{
             }
         }
         result.h=fmod(result.h, 1.0);
+        //making sure it's not negative
+        if(result.h < 0.0) result.h += 1.0;
         result.a=color->a;
         return result;
     }

@@ -16,6 +16,9 @@ GdkRGBA* CURRENT_COLOR;
 
 static cairo_surface_t* surface=NULL;
 
+float drag_dot_scale = 1.0;
+float drag_bar_scale = 1.0;
+
 // std::vector<gpointer> rid(100);
 
 GdkRGBA _rgb_to_gdk_rgba(ColorSpaces::RGB* color) {
@@ -70,6 +73,9 @@ void resize_cb(GtkWidget* widget, int width, int height, gpointer   data) {
     }
 }
 
+float current_hue=0.0;
+bool hsl_dragged_farright = false;
+
 void paint_hsl_area(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
     niffie("kk");
     GdkRGBA* color=g_new(GdkRGBA, 1);
@@ -97,6 +103,9 @@ void paint_hsl_area(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int he
     ColorSpaces::RGB t=(_gdk_rgba_to_rgb(color));
     *hsl_color=Converter::rgb_to_hsl(&t);
     ColorSpaces::HSL* hslpix=g_new(ColorSpaces::HSL, 1);
+    if (hsl_color->s == 0.0 or hsl_dragged_farright){
+        hsl_color->h = current_hue;
+    }
     hue=hsl_color->h;
     hslpix->l=std::max(hsl_color->l, 0.5f);
     hslpix->a=1.0;
@@ -168,7 +177,9 @@ void paint_hsl_area(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int he
     }
 
     //painting color dot
-    int dot_radius = 10, dot_x = hsl_color->h*width_+width/20, dot_y = hsl_color->s*height_*7+height/10;
+    int dot_radius = 10*drag_dot_scale, dot_x = hsl_color->h*width_+width/20, dot_y = hsl_color->s*height_*7+height/10;
+
+    niffie("dot-paint"+std::to_string(dot_x)+' '+std::to_string(dot_y)+" hsl hue:"+std::to_string(hsl_color->h));
     cairo_set_source_surface(cr, surface,width/20, height/10);
     cairo_set_source_rgba(cr, outerborder->red, outerborder->green, outerborder->blue, outerborder->alpha);
     cairo_arc(cr, dot_x, dot_y, dot_radius, 0, 2*M_PI);
@@ -182,7 +193,7 @@ void paint_hsl_area(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int he
     cairo_stroke(cr);
 
     //painting color bar on lightness slider
-    float bar_x = hsl_color->l*width_ + width/20, bar_y = height*7/10, bar_width=10;
+    float bar_x = hsl_color->l*width_ + width/20, bar_y = height*7/10, bar_width=10*drag_bar_scale;
     cairo_set_source_rgba(cr, outerborder->red, outerborder->green, outerborder->blue, outerborder->alpha);
     cairo_rectangle(cr, bar_x-bar_width/2, bar_y, bar_width, height_);
     cairo_stroke(cr);
@@ -237,6 +248,102 @@ static void close_window(gpointer window) {
     }
 }
 
+float startx, starty;
+
+void hsl_drag_begin(GtkGestureDrag *gesture, float x, float y, GtkWidget *area){
+    int width = gtk_widget_get_width(area);
+    int height = gtk_widget_get_height(area);
+    double dx,dy;
+    bool sth=gtk_gesture_drag_get_start_point(gesture, &dx, &dy);
+    x=dx; y=dy;
+    niffie("drag"+std::to_string(dx)+' '+std::to_string(dy));
+    if(width/20 <= x and width*19/20 >= x){
+        ColorSpaces::HSL* current_hsl = g_new(ColorSpaces::HSL, 1);
+        ColorSpaces::RGB t = _gdk_rgba_to_rgb(CURRENT_COLOR);
+        *current_hsl = Converter::rgb_to_hsl(&t);
+        if (height/10 <= y and height*6/10 >= y) {
+            drag_dot_scale=2.0;
+            startx=x;
+            starty=y;
+            current_hsl->h = (x - width/20)*10 / (width*9);
+            current_hue=current_hsl->h;
+            current_hsl->s = (y - height/10)*2 / height;
+            t=Converter::hsl_to_rgb(current_hsl);
+            *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+    niffie("drag-start"+std::to_string(startx)+' '+std::to_string(starty));
+        } else if (height*7/10 <= y and height*8/10 >= y) {
+            drag_bar_scale=1.5;
+            startx=x;
+            starty=y;
+            current_hsl->l=(x - width/20)*10 / (width*9);
+            t=Converter::hsl_to_rgb(current_hsl);
+            *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+    niffie("drag-start"+std::to_string(startx)+' '+std::to_string(starty));
+        }
+        g_free(current_hsl);
+    }
+
+    gtk_widget_queue_draw(area);
+}
+
+void hsl_drag_end(GtkGestureDrag *gesture, float x, float y, GtkWidget *area){
+    int width = gtk_widget_get_width(area);
+    int height = gtk_widget_get_height(area);
+    drag_dot_scale = 1.0;
+    drag_bar_scale=1.0;
+    double dx, dy;
+    bool sth=gtk_gesture_drag_get_start_point(gesture, &dx, &dy);
+    x=dx; y=dy;
+    gtk_widget_queue_draw(area);
+}
+
+void hsl_drag_update(GtkGestureDrag* gesture, float x, float y, GtkWidget* area) {
+    float width=gtk_widget_get_width(area);
+    float height = gtk_widget_get_height(area);
+    double dx,dy;
+    bool sth=gtk_gesture_drag_get_offset(gesture, &dx, &dy);
+    niffie("drag"+std::to_string(dx)+' '+std::to_string(dy));
+    x=dx; y=dy;
+    x += startx;
+    y+=starty;
+    ColorSpaces::HSL* current_hsl=g_new(ColorSpaces::HSL, 1);
+    ColorSpaces::RGB t=_gdk_rgba_to_rgb(CURRENT_COLOR);
+    *current_hsl=Converter::rgb_to_hsl(&t);
+    if (drag_dot_scale>1.0) {
+        float bound_x=std::min(width*19/20.0f, std::max(width/20.0f, x));
+        float bound_y=std::min(height*6/10.0f, std::max(height/10.0f, y));
+        // startx=bound_x;
+        // starty=bound_y;
+        current_hsl->h=(bound_x - width/20)*10 / (width*9);
+            current_hue=current_hsl->h;
+            if(x > width*19/20.0f){
+                current_hue = 1.0;
+                hsl_dragged_farright = true;
+            } else{
+                hsl_dragged_farright = false;
+            }
+        current_hsl->s=(bound_y - height/10)*2 / height;
+
+    niffie("drag-upd"+std::to_string(bound_x)+' '+std::to_string(bound_y));
+        t=Converter::hsl_to_rgb(current_hsl);
+        *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+    } else if (drag_bar_scale>1.0) {
+        float bound_x=std::min(width*19/20.0f, std::max(width/20.0f, x));
+        y=height*7.5/10;
+        // startx=bound_x;
+        // starty=y;
+        current_hsl->l=(bound_x - width/20)*10 / (width*9);
+        t=Converter::hsl_to_rgb(current_hsl);
+        *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+    }
+    g_free(current_hsl);
+    niffie("trying to draw");
+    // g_signal_emit_by_name(GTK_WIDGET(area), "draw");
+    gtk_widget_queue_draw(area);
+    // resize_cb(GTK_WIDGET(area), width, height, NULL);
+}
+
+
 
 static void activate(GtkApplication* app, gpointer user_data) {
     GtkWidget* window;
@@ -245,6 +352,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     GtkWidget* hslpage;
     GtkWidget* hslpage_tab;
     GtkWidget* hsl_chooser;
+    GtkGesture* hsl_drag;
     GtkWidget* hsvpage;
     GtkWidget* hsvpage_tab;
     GtkWidget* hsv_chooser;
@@ -280,6 +388,12 @@ static void activate(GtkApplication* app, gpointer user_data) {
     gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(hsl_chooser), paint_hsl_area, CURRENT_COLOR, (GDestroyNotify)g_free);
     g_signal_connect_after(GTK_DRAWING_AREA(hsl_chooser), "resize", G_CALLBACK(resize_cb), NULL);
     int hslpage_num=gtk_notebook_append_page(GTK_NOTEBOOK(notebook), hslpage, hslpage_tab);
+    hsl_drag = gtk_gesture_drag_new();
+    gtk_gesture_single_set_button(GTK_GESTURE_SINGLE(hsl_drag), GDK_BUTTON_PRIMARY);
+    gtk_widget_add_controller(hsl_chooser, GTK_EVENT_CONTROLLER(hsl_drag));
+    g_signal_connect(hsl_drag, "drag-begin", G_CALLBACK(hsl_drag_begin), hsl_chooser);
+    g_signal_connect(hsl_drag, "drag-update", G_CALLBACK(hsl_drag_update), hsl_chooser);
+    g_signal_connect(hsl_drag, "drag-end", G_CALLBACK(hsl_drag_end), hsl_chooser);
 
     hsvpage=gtk_frame_new(NULL);
     hsvpage_tab=gtk_label_new("HSV");

@@ -43,7 +43,7 @@ custom gtk-based color picker (no, the gtk built-in Gtk.ColorChooser was not use
 requires only gtk libraries (aside from ColorPicker's friends from here)<br>
 
 functionality:
-- \* hsl color picker
+- hsl color picker
 - \* hsv color picker
 - \* hwb triangle-in-a-ring color picker
 - \* basic rgb/hex editor maybe?

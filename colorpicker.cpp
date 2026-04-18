@@ -1032,30 +1032,36 @@ public:
         bool sth=gtk_gesture_drag_get_start_point(gesture, &dx, &dy);
         x=dx; y=dy;
         niffie("drag"+std::to_string(dx)+' '+std::to_string(dy));
-        if (width/20 <= x and width*19/20 >= x) {
-            ColorSpaces::HSV* current_hsv=g_new(ColorSpaces::HSV, 1);
+        Geometry::Point2 P = {.x=x, .y=y};
+        Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&P, hwbprops.CentrePoint);
+        if (polar.r <= hwbprops.ring_outerradius) {
+            ColorSpaces::HWB* current_hwb=g_new(ColorSpaces::HWB, 1);
             ColorSpaces::RGB t=_gdk_rgba_to_rgb(CURRENT_COLOR);
-            *current_hsv=Converter::rgb_to_hsv(&t);
-            if (height/10 <= y and height*6/10 >= y) {
-                hsvprops.drag_dot_scale=2.0;
-                hsvprops.startx=x;
-                hsvprops.starty=y;
-                current_hsv->h=(x - width/20)*10 / (width*9);
-                current_hue=current_hsv->h;
-                current_hsv->s=(y - height/10)*2 / height;
-                t=Converter::hsv_to_rgb(current_hsv);
+            *current_hwb=Converter::rgb_to_hwb(&t);
+            Geometry::Point2 coords;
+            coords.x = x - hwbprops.CentrePoint->x;
+            coords.y = y - hwbprops.CentrePoint->y;
+            coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
+            niffie("coords: "+std::to_string(coords.x)+' '+std::to_string(coords.y));
+            if(polar.r >= hwbprops.ring_innerradius){
+                hwbprops.drag_bar_scale = 1.5;
+                hwbprops.startx = x;
+                hwbprops.starty = y;
+                current_hwb->h = std::fmodf(polar.angle + 0.5f * M_PI, (2 * M_PI)) / (2 * M_PI);
+                t=Converter::hwb_to_rgb(current_hwb);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
-                niffie("drag-start"+std::to_string(hsvprops.startx)+' '+std::to_string(hsvprops.starty));
-            } else if (height*7/10 <= y and height*8/10 >= y) {
-                hsvprops.drag_bar_scale=1.5;
-                hsvprops.startx=x;
-                hsvprops.starty=y;
-                current_hsv->v=(x - width/20)*10 / (width*9);
-                t=Converter::hsv_to_rgb(current_hsv);
+            } else if(GeoCalc_2d::inside_triangle(&coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
+                niffie("in triangle");
+                hwbprops.drag_dot_scale=1.5;
+                current_hue = current_hwb->h;
+                hwbprops.startx = x;
+                hwbprops.starty = y;
+                current_hwb->w = GeoCalc_2d::distance(&coords, hwbprops.NoWhiteLine) / hwbprops.triangle_height;
+                current_hwb->b = GeoCalc_2d::distance(&coords, hwbprops.NoBlackLine) / hwbprops.triangle_height;
+                t=Converter::hwb_to_rgb(current_hwb);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
-                niffie("drag-start"+std::to_string(hsvprops.startx)+' '+std::to_string(hsvprops.starty));
             }
-            g_free(current_hsv);
+            g_free(current_hwb);
         }
 
         gtk_widget_queue_draw(area);
@@ -1067,41 +1073,53 @@ public:
         float height=gtk_widget_get_height(area);
         double dx, dy;
         bool sth=gtk_gesture_drag_get_offset(gesture, &dx, &dy);
-        niffie("drag"+std::to_string(dx)+' '+std::to_string(dy));
+        niffie("hwb   drag "+std::to_string(dx)+' '+std::to_string(dy));
         x=dx; y=dy;
-        x+=hsvprops.startx;
-        y+=hsvprops.starty;
-        ColorSpaces::HSV* current_hsv=g_new(ColorSpaces::HSV, 1);
+        x+=hwbprops.startx;
+        y+=hwbprops.starty;
+        ColorSpaces::HWB* current_hwb=g_new(ColorSpaces::HWB, 1);
         ColorSpaces::RGB t=_gdk_rgba_to_rgb(CURRENT_COLOR);
-        *current_hsv=Converter::rgb_to_hsv(&t);
-        if (hsvprops.drag_dot_scale>1.0) {
-            float bound_x=std::min(width*19/20.0f, std::max(width/20.0f, x));
-            float bound_y=std::min(height*6/10.0f, std::max(height/10.0f, y));
-            // hsvprops.startx=bound_x;
-            // hsvprops.starty=bound_y;
-            current_hsv->h=(bound_x - width/20)*10 / (width*9);
-            current_hue=current_hsv->h;
-            if (x > width*19/20.0f) {
-                current_hue=1.0;
-                hsvprops.hsv_dragged_farright=true;
-            } else {
-                hsvprops.hsv_dragged_farright=false;
+        *current_hwb=Converter::rgb_to_hwb(&t);
+        niffie(std::to_string(hwbprops.drag_dot_scale)+' '+std::to_string(hwbprops.drag_bar_scale));
+        hwbprops.hwb_dragged_outside = false;
+        if (hwbprops.drag_dot_scale>1.0) {
+            niffie("dragging the dot ----------------------------");
+            Geometry::Point2 coords = {.x = x, .y = y};
+            Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, hwbprops.CentrePoint);
+            coords.x = x - hwbprops.CentrePoint->x;
+            coords.y = y - hwbprops.CentrePoint->y;
+            coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
+            if(!GeoCalc_2d::inside_triangle(&coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
+                hwbprops.hwb_dragged_outside = true;
+                float rmax = polar.r, rmin = 0, rcandidate;
+                while(abs(rmax-rmin) > 0.05){
+                    rcandidate = (rmin + rmax)/2.0f;
+                    polar.r = rcandidate;
+                    coords = GeoCalc_2d::polar_to_cartesian(&polar);
+                    coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
+                    if(GeoCalc_2d::inside_triangle(&coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
+                        rmin = rcandidate;
+                    } else{
+                        rmax = rcandidate;
+                    }
+                }
+                polar.r = rmin;
+                coords = GeoCalc_2d::polar_to_cartesian(&polar);
+                coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
             }
-            current_hsv->s=(bound_y - height/10)*2 / height;
-
-            niffie("drag-upd"+std::to_string(bound_x)+' '+std::to_string(bound_y));
-            t=Converter::hsv_to_rgb(current_hsv);
+            current_hwb->w = GeoCalc_2d::distance(&coords, hwbprops.NoWhiteLine) / hwbprops.triangle_height;
+            current_hwb->b = GeoCalc_2d::distance(&coords, hwbprops.NoBlackLine) / hwbprops.triangle_height;
+            current_hwb->h = current_hue;
+            t=Converter::hwb_to_rgb(current_hwb);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
-        } else if (hsvprops.drag_bar_scale>1.0) {
-            float bound_x=std::min(width*19/20.0f, std::max(width/20.0f, x));
-            y=height*7.5/10;
-            // hsvprops.startx=bound_x;
-            // hsvprops.starty=y;
-            current_hsv->v=(bound_x - width/20)*10 / (width*9);
-            t=Converter::hsv_to_rgb(current_hsv);
+        } else if (hwbprops.drag_bar_scale>1.0) {
+            Geometry::Point2 coords = {.x = x, .y = y};
+            Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, hwbprops.CentrePoint);
+            current_hwb->h = std::fmodf(polar.angle + 0.5f * M_PI, (2 * M_PI)) / (2 * M_PI);
+            t=Converter::hwb_to_rgb(current_hwb);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
         }
-        g_free(current_hsv);
+        g_free(current_hwb);
         niffie("trying to draw");
         // g_signal_emit_by_name(GTK_WIDGET(area), "draw");
         gtk_widget_queue_draw(area);
@@ -1112,8 +1130,9 @@ public:
         GtkWidget* area = tab->content;
         int width=gtk_widget_get_width(area);
         int height=gtk_widget_get_height(area);
-        hsvprops.drag_dot_scale=1.0;
-        hsvprops.drag_bar_scale=1.0;
+        hwbprops.drag_dot_scale=1.0;
+        hwbprops.drag_bar_scale=1.0;
+        hwbprops.hwb_dragged_outside = false;
         double dx, dy;
         bool sth=gtk_gesture_drag_get_start_point(gesture, &dx, &dy);
         x=dx; y=dy;
@@ -1147,6 +1166,10 @@ public:
         Geometry::Polar2 polar;
         // unsigned int* buffer = g_new(unsigned int, (height_*stride)/4);
         // unsigned int* pixel;
+        if(hwbprops.drag_dot_scale > 1.0){
+            hue = current_hue;
+            hwb_color->h = hue;
+        }
         float hue_angle = hue * 2.0f * M_PI;
         niffie(std::to_string(hue_angle)+" ... "+std::to_string(hue));
         ColorSpaces::RGB8 pixcolor;

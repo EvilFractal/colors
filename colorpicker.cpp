@@ -1,7 +1,10 @@
 #include<gtk/gtk.h>
+#include<gdk/gdk.h>
 #include<cairo.h>
 #include<iostream>
 #include<math.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include "colorspaces.h"
 #include "geometry.h"
 
@@ -17,7 +20,8 @@ GdkRGBA* CURRENT_COLOR;
 
 static cairo_surface_t* surface=NULL;
 
-Display* display;
+// GdkDisplay* display;
+GdkCursor* cursor;
 
 float drag_dot_scale=1.0;
 float drag_bar_scale=1.0;
@@ -134,6 +138,7 @@ void update(GtkWidget* widget, gpointer data){
 void update_nb(GtkNotebook* notebook, gpointer data){
     int active_page = gtk_notebook_get_current_page(notebook);
     gtk_widget_queue_draw(gtk_frame_get_child(GTK_FRAME(gtk_notebook_get_nth_page(notebook, active_page))));
+
 }
 
 void free_tile(ColorTile* obj) {
@@ -290,7 +295,7 @@ float current_hue=0.0;
 // }
 
 static void close_window(gpointer window) {
-    XCloseDisplay(display);
+    // XCloseDisplay(display);
     if (surface) {
         // cairo_surface_destroy(surface);
     }
@@ -1314,9 +1319,9 @@ public:
         gtk_grid_attach(grid, eyedropper->button, grid_col, grid_row, width, height);
         eyedropper->enter = gtk_event_controller_key_new();
         eyedropper_handler_id = g_signal_connect_data(eyedropper->enter, "key-pressed", G_CALLBACK(eyedropper_end), eyedropper, on_closure_notify, G_CONNECT_SWAPPED);
-        if(!display){
-        display=XOpenDisplay(NULL);
-        }
+        // if(!display){
+        // display=XOpenDisplay(NULL);
+        // }
         return eyedropper;
     }
 
@@ -1351,16 +1356,32 @@ public:
     }
 
     static void getpixcolor() {
-        
-        // unsigned int red, green, blue;
-        // red = (pixel >>16 )^ ((pixel>>24)<<8);
-        // green = (pixel >> 8)^ ((pixel>>16)<<8);
-        // blue = pixel ^ ((pixel >> 8)<<8);
-        // niffie(std::to_string(red)+' '+std::to_string(green)+' '+std::to_string(blue));
-        // CURRENT_COLOR->red = (float)red / 255.0f;
-        // CURRENT_COLOR->green = (float)green / 255.0f;
-        // CURRENT_COLOR->blue = (float)blue / 255.0f;
-        // // Close the display    
+        Display* display=XOpenDisplay(NULL);
+        Window root=DefaultRootWindow(display);
+        // Get cursor position
+        Window root_return, child_return;
+        int root_x, root_y, win_x, win_y;
+        unsigned int mask;
+        XQueryPointer(display, root, &root_return, &child_return,
+            &root_x, &root_y, &win_x, &win_y, &mask);
+
+        // Get pixel at cursor position
+        XImage* image=XGetImage(display, root, root_x, root_y, 1, 1, AllPlanes, ZPixmap);
+        if (image) {
+            unsigned long pixel=XGetPixel(image, 0, 0);
+            XDestroyImage(image);
+            unsigned int red, green, blue;
+            red=(pixel >>16)^ ((pixel>>24)<<8);
+            green=(pixel >> 8)^ ((pixel>>16)<<8);
+            blue=pixel ^ ((pixel >> 8)<<8);
+            niffie(std::to_string(red)+' '+std::to_string(green)+' '+std::to_string(blue));
+            CURRENT_COLOR->red=(float)red / 255.0f;
+            CURRENT_COLOR->green=(float)green / 255.0f;
+            CURRENT_COLOR->blue=(float)blue / 255.0f;
+            // pixel now contains your color value
+        }
+        XCloseDisplay(display);
+
     }
 };
 
@@ -1471,6 +1492,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_WIDGET(hsv_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
     std::cout<<"a ";
     gtk_window_set_child(GTK_WINDOW(window), grid);
     std::cout<<"a ";

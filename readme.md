@@ -6,18 +6,15 @@
 
 ```<colorspaces.h>``` provides some colorspace tools:
 - color-holding types implemented in ```color_containers.h```: 
-    - <code>struct RGB8 {int r, int g, int b}</code> – currently the only one holding hex-compatible (integer) rgb color value
-    - <code>struct RGB {float r, float g, float b}</code> – the most versatile, preferred way to store colors
+    - <code>RGB8 {int r, int g, int b, float a=1.0}</code> – currently the only one holding hex-compatible (integer) rgb color value
+    - <code>RGB {float r, float g, float b, float a=1.0}</code> – the most versatile, preferred way to store colors
 
     and for their respective color space formats:
-    - <code>struct HSV {float h, float s, float v}</code> 
-    - <code> struct HSL {float h, float s, float l}  </code>
-    - <code> struct HWB {float h, float w, float b} </code>
+    - <code>HSV {float h, float s, float v, float a=1.0} </code> 
+    - <code>HSL {float h, float s, float l, float a=1.0} </code>
+    - <code>HWB {float h, float w, float b, float a=1.0} </code>
 
-    additionally it allows for any of the color formats to gain alpha value:
-    - <code> struct ALPHA <color_typename> {color_typename base_color, float a}</code>
-
-    accessible as ```ColorSpaces::<typename>``` 
+    accessible as ```ColorSpaces::<typename>```, all colors have a hidden floating-point alpha value one needs not be concerned about, for it's set to full coverage by default. However, shall it prove useful, the option of changing alpha remains.
 - ```Converter``` implemented in ```converter.cpp``` is a class of functions for color space conversions:<br>
     between color spaces:
     - ```HSL rgb_to_hsl (RGB *color)``` 
@@ -30,7 +27,7 @@
     and within rgb color space:
     - ```RGB8 float_to_int_rgb (RGB *color)```
     - ```RGB int_to_float_rgb (RGB8 *color)```
-    - ```std::string hex (RGB8 *color)```
+    - ```std::string hex (RGB8 *color)``` – note that it ignores the color's alpha value
     - ```RGB8 unhex (std::string *hex)```
 
     all called by ```Converter.<function_name>(<args>)```
@@ -44,7 +41,7 @@ requires only gtk libraries (aside from ColorPicker's friends from here)<br>
 
 functionality:
 - hsl color picker
-- \* hsv color picker
+- hsv color picker
 - \* hwb triangle-in-a-ring color picker
 - \* basic rgb/hex editor maybe?
 - \* eyedropper
@@ -52,9 +49,24 @@ functionality:
 \* not yet implemented
 
 ## Geometry module
-will contain various geometry utilities primarily needed by ColorPicker, but it shall eventually consist of ```Geometry``` class (defined in ```<geometry.h>```) and its methods, dependent only on the standard c++ library and usable by itself <br>
+will contain various geometry utilities primarily needed by ColorPicker, but it shall eventually consist of ```Geometry``` class (accessible through ```<geometry.h>```) and its methods, dependent only on the standard c++ library and usable by itself <br>
 current features:
-- none -_-
+- geometrical structures defined in ```<geometry-containers.h>```:
+    - ```Point2 {float x, float y}``` – a two-dimensional point
+    - ```LineGeneral2 {float A, float B, float C}``` – a line with standard two-dimensional coordinates described by its general equation of form ```A*x + B*y + C = 0```
+
+    accessible as ```Geometry::<typename>```
+- two-dimensional geometry utilities implemented in ```<geometry-2d.cpp>```:
+    - ```distance```
+        1. ```float (Point2* P, LineGeneral2* k)``` – calculates the distance between a given point an a line in general form
+        2. ```float (Point2* P, Point2* Q)``` – calculates the distance between two points
+    - ```float f_radians (float fullcircle_fraction)``` – converts a floating-point fraction of a full circle, p.ex. a color's hue, into its equivalent in radians
+    - ```Point2 rotate (Point2* P, float angle, Point2* Centre=Point0_0)``` – returns P's coordinates after the rotation by ```angle``` around the ```Centre``` point
+
+    all called by ```GeoCalc_2d.<function_name>(<args>)```
+    
+    and constant:
+    - ```Point2 Point0_0 {x = 0, y = 0}```
 
 ## Miscellaneous
 if needed, create some ```Painter``` class for painting events <br>

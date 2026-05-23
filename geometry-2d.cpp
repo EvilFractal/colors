@@ -85,12 +85,12 @@ public:
     }
 
     static float get_x(LineGeneral2* k, float y){
-        if(k->A == 0) return NULL;
+        if(k->A == 0) return INFINITY;
         return ( - (k->B*y + k->C) / k->A);
     }
 
     static float get_y(LineGeneral2* k, float x){
-        if(k->B == 0) return NULL;
+        if(k->B == 0) return INFINITY;
         return ( - (k->A*x + k->C) / k->B);
     }
 
@@ -103,7 +103,7 @@ public:
     }
 
     static Point2 intersection_point(LineGeneral2* k, LineGeneral2* m){
-        if(k->A * (m->B) - k->B * (m->A) == 0) return Point2{.x=NULL, .y=NULL};
+        if(k->A * (m->B) - k->B * (m->A) == 0) return Point2{.x=INFINITY, .y=INFINITY};
         Point2 P;
         if(m->A == 0){
             P.y = - m->C / m->B;

@@ -17,13 +17,15 @@ GdkRGBA* CURRENT_COLOR;
 
 static cairo_surface_t* surface=NULL;
 
+Display* display;
+
 float drag_dot_scale=1.0;
 float drag_bar_scale=1.0;
 
 class ColorTile;
 void update(GtkWidget* widget, gpointer data);
 
-enum {    ACTION_SIGNAL,    LAST_SIGNAL};
+enum { TOGGLE_PICKER_SIGNAL,   DRAW_ACTION_SIGNAL,    LAST_SIGNAL};
 static guint my_widget_signals[LAST_SIGNAL] = { 0 };
 // std::vector<gpointer> rid(100);
 
@@ -125,9 +127,14 @@ public:
 };
 
 void update(GtkWidget* widget, gpointer data){
-        // niffie("works");
-        gtk_widget_queue_draw(widget);
-    }
+    // niffie("works");
+    gtk_widget_queue_draw(widget);
+}
+
+void update_nb(GtkNotebook* notebook, gpointer data){
+    int active_page = gtk_notebook_get_current_page(notebook);
+    gtk_widget_queue_draw(gtk_frame_get_child(GTK_FRAME(gtk_notebook_get_nth_page(notebook, active_page))));
+}
 
 void free_tile(ColorTile* obj) {
     g_free(obj);
@@ -283,6 +290,7 @@ float current_hue=0.0;
 // }
 
 static void close_window(gpointer window) {
+    XCloseDisplay(display);
     if (surface) {
         // cairo_surface_destroy(surface);
     }
@@ -1290,6 +1298,72 @@ public:
     }
 };
 
+static gulong eyedropper_handler_id;
+
+class Eyedropper {
+public:
+    GtkWidget* button;
+    GtkEventController* enter;
+    guint timeout;
+
+    static Eyedropper* Eyedropper_new(GtkGrid* grid, const char* button_name, 
+                                      int grid_row=0, int grid_col=0, int width=1, int height=1){
+        Eyedropper* eyedropper = g_new(Eyedropper, 1);
+        eyedropper->button = gtk_toggle_button_new_with_label(button_name);
+        g_signal_connect(GTK_TOGGLE_BUTTON(eyedropper->button), "toggled", G_CALLBACK(togglebutton), eyedropper);
+        gtk_grid_attach(grid, eyedropper->button, grid_col, grid_row, width, height);
+        eyedropper->enter = gtk_event_controller_key_new();
+        eyedropper_handler_id = g_signal_connect_data(eyedropper->enter, "key-pressed", G_CALLBACK(eyedropper_end), eyedropper, on_closure_notify, G_CONNECT_SWAPPED);
+        if(!display){
+        display=XOpenDisplay(NULL);
+        }
+        return eyedropper;
+    }
+
+    static void togglebutton(GtkToggleButton* button, float x, float y, Eyedropper* eyedropper){
+        bool button_is_active = gtk_toggle_button_get_active(button);
+        if(button_is_active){
+            eyedropper->timeout = g_timeout_add(100, eyedropper_run, (Eyedropper*)eyedropper);
+        } else{
+            if (eyedropper->timeout != 0) {
+                g_source_remove(eyedropper->timeout);
+                eyedropper->timeout = 0;
+                eyedropper_end(eyedropper, 0, 0, eyedropper->enter);
+            }
+        }
+        g_signal_emit_by_name(GTK_WIDGET(button), "color-change");
+    }
+
+    static gboolean eyedropper_run(gpointer user_data) {
+        getpixcolor();
+        Eyedropper* eyedropper = (Eyedropper*) user_data;
+        niffie("works!");
+        g_signal_emit_by_name(GTK_WIDGET(eyedropper->button), "color-change");
+        return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(eyedropper->button));
+    }
+
+    static void eyedropper_end(Eyedropper* eyedropper, float x, float y, GtkEventController* enter) {
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(eyedropper->button), false);
+        getpixcolor();
+        g_signal_handler_disconnect(enter, eyedropper_handler_id);
+        g_signal_emit_by_name(GTK_WIDGET(eyedropper->button), "color-change");
+        // g_free(eyedropper->enter);
+    }
+
+    static void getpixcolor() {
+        
+        // unsigned int red, green, blue;
+        // red = (pixel >>16 )^ ((pixel>>24)<<8);
+        // green = (pixel >> 8)^ ((pixel>>16)<<8);
+        // blue = pixel ^ ((pixel >> 8)<<8);
+        // niffie(std::to_string(red)+' '+std::to_string(green)+' '+std::to_string(blue));
+        // CURRENT_COLOR->red = (float)red / 255.0f;
+        // CURRENT_COLOR->green = (float)green / 255.0f;
+        // CURRENT_COLOR->blue = (float)blue / 255.0f;
+        // // Close the display    
+    }
+};
+
 static void activate(GtkApplication* app, gpointer user_data) {
     GtkWidget* window;
     GtkWidget* grid;
@@ -1352,9 +1426,9 @@ static void activate(GtkApplication* app, gpointer user_data) {
     // g_signal_connect_after(GTK_DRAWING_AREA(hsv_chooser), "resize", G_CALLBACK(resize_cb), NULL);
     // int hsvpage_num=gtk_notebook_append_page(GTK_NOTEBOOK(notebook), hsvpage, hsvpage_tab);
     HSVTab* hsv_chooser = HSVTab::HSVTabnew(GTK_NOTEBOOK(notebook), "HSV");
-    my_widget_signals[ACTION_SIGNAL] = g_signal_new(
+    my_widget_signals[DRAW_ACTION_SIGNAL] = g_signal_new(
             "color-change",
-            G_TYPE_FROM_CLASS(GTK_DRAWING_AREA_GET_CLASS(hsl_chooser->content)),
+            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(hsl_chooser->content)),
             G_SIGNAL_RUN_FIRST,     
             0, /* class offset for default handler */     
             nullptr, nullptr,     
@@ -1376,14 +1450,27 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     //color tile under the chooser
     std::cout<<"middle ";
+    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", 3,0);
+    my_widget_signals[TOGGLE_PICKER_SIGNAL] = g_signal_new(
+            "color-change",
+            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(eyedropper->button)),
+            G_SIGNAL_RUN_FIRST,     
+            0, /* class offset for default handler */     
+            nullptr, nullptr,     
+            g_cclosure_marshal_VOID__STRING,     
+            G_TYPE_NONE, /* return type */     
+            1,    /* n_params */     
+            G_TYPE_STRING 
+    );
     // ColorTile* current_color_tile=g_new(ColorTile, 1);
     // *current_color_tile=_initColorTile(grid);
     // std::cout<<"end ";
     // gtk_grid_attach(GTK_GRID(grid), current_color_tile->frame, 2, 3, 1, 1);
     ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 2, 3, 1, 1);
-    g_signal_connect_data(GTK_DRAWING_AREA(hsl_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_DRAWING_AREA(hsv_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_DRAWING_AREA(hwb_triangle_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hsl_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hsv_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     std::cout<<"a ";
     gtk_window_set_child(GTK_WINDOW(window), grid);
     std::cout<<"a ";

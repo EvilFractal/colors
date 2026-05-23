@@ -21,7 +21,7 @@ GdkRGBA* CURRENT_COLOR;
 static cairo_surface_t* surface=NULL;
 
 // GdkDisplay* display;
-GdkCursor* cursor;
+// GdkCursor* cursor;
 
 float drag_dot_scale=1.0;
 float drag_bar_scale=1.0;
@@ -1311,18 +1311,31 @@ public:
     GtkEventController* enter;
     guint timeout;
 
-    static Eyedropper* Eyedropper_new(GtkGrid* grid, const char* button_name, 
-                                      int grid_row=0, int grid_col=0, int width=1, int height=1){
-        Eyedropper* eyedropper = g_new(Eyedropper, 1);
-        eyedropper->button = gtk_toggle_button_new_with_label(button_name);
+    static Eyedropper* Eyedropper_new(GtkGrid* grid, const char* button_name=NULL, const char* icon_name=NULL,
+                                      int grid_row=0, int grid_col=0, int width=1, int height=1) {
+        Eyedropper* eyedropper=g_new(Eyedropper, 1);
+        //if icon is specified and available, use the icon
+        eyedropper->button=gtk_toggle_button_new();
+        gtk_button_set_can_shrink(GTK_BUTTON(eyedropper->button), TRUE);
+        gtk_widget_set_hexpand(GTK_WIDGET(eyedropper->button), FALSE);
+        if (icon_name != NULL and icon_exists(icon_name)) {
+            gtk_button_set_icon_name(GTK_BUTTON(eyedropper->button), icon_name);
+        }
+        else if (button_name != NULL) {
+            gtk_button_set_label(GTK_BUTTON(eyedropper->button), button_name);
+        }
         g_signal_connect(GTK_TOGGLE_BUTTON(eyedropper->button), "toggled", G_CALLBACK(togglebutton), eyedropper);
         gtk_grid_attach(grid, eyedropper->button, grid_col, grid_row, width, height);
-        eyedropper->enter = gtk_event_controller_key_new();
-        eyedropper_handler_id = g_signal_connect_data(eyedropper->enter, "key-pressed", G_CALLBACK(eyedropper_end), eyedropper, on_closure_notify, G_CONNECT_SWAPPED);
+        eyedropper->enter=gtk_event_controller_key_new();
+        eyedropper_handler_id=g_signal_connect_data(eyedropper->enter, "key-pressed", G_CALLBACK(eyedropper_end), eyedropper, on_closure_notify, G_CONNECT_SWAPPED);
         // if(!display){
         // display=XOpenDisplay(NULL);
         // }
         return eyedropper;
+    }
+
+    void resize(int width, int height){
+        gtk_widget_set_size_request(GTK_WIDGET(button), width, height);
     }
 
     static void togglebutton(GtkToggleButton* button, float x, float y, Eyedropper* eyedropper){
@@ -1382,6 +1395,13 @@ public:
         }
         XCloseDisplay(display);
 
+    }
+
+
+    static bool icon_exists(const char* name){
+        GdkDisplay* display = gdk_display_get_default();
+        GtkIconTheme* theme = gtk_icon_theme_get_for_display(display);
+        return (bool) gtk_icon_theme_has_icon(theme, name);
     }
 };
 
@@ -1471,7 +1491,8 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     //color tile under the chooser
     std::cout<<"middle ";
-    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", 3,0);
+    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", "color-select", 3,0);
+    eyedropper->resize(50,50);
     my_widget_signals[TOGGLE_PICKER_SIGNAL] = g_signal_new(
             "color-change",
             G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(eyedropper->button)),

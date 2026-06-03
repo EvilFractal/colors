@@ -5,8 +5,11 @@
 #include<math.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include<cstring>
 #include "colorspaces.h"
 #include "geometry.h"
+
+#define DEBUG true
 
 GdkRGBA* CURRENT_COLOR;
 
@@ -18,7 +21,13 @@ float drag_bar_scale=1.0;
 class ColorTile;
 void update(GtkWidget* widget, gpointer data);
 
-enum { TOGGLE_PICKER_SIGNAL,   DRAW_ACTION_SIGNAL,    LAST_SIGNAL};
+GtkCssProvider* css_provider;
+
+enum { 
+    TOGGLE_PICKER_SIGNAL,
+    DRAW_ACTION_SIGNAL,
+    LAST_SIGNAL
+};
 static guint my_widget_signals[LAST_SIGNAL] = { 0 };
 
 GdkRGBA _rgb_to_gdk_rgba(ColorSpaces::RGB* color) {
@@ -40,7 +49,7 @@ ColorSpaces::RGB _gdk_rgba_to_rgb(GdkRGBA* color) {
 }
 
 void niffie(std::string message) {
-    std::cout<<message<<'\n'<<std::flush;
+    if(DEBUG) std::cout<<message<<'\n'<<std::flush;
     return;
 }
 
@@ -80,6 +89,10 @@ static void on_closure_notify(gpointer data, GClosure *closure){
 }
 static void on_destroy_notify(gpointer data){
     g_free(data);
+}
+
+static void unfocus(GtkWindow* window, gpointer data){
+    gtk_window_set_focus(window, NULL);
 }
 
 class ColorTile {
@@ -1112,6 +1125,102 @@ public:
         return (bool) gtk_icon_theme_has_icon(theme, name);
     }
 };
+/**
+ * testing doc: Textbox class
+ * initialiser:
+ * @
+ */
+class Textbox{
+public:
+    GtkWidget* entry;
+    GtkWidget* frame;
+    GtkWidget* field_name;
+    const char* default_text;
+    bool valid;
+
+    
+    static Textbox* Textbox_new (GtkGrid* grid, GCallback validator, const char* fieldname, const char* placeholder=NULL,
+            const char* buffer=NULL, int length=-1, int grid_row=0, int grid_col=0, int width=1, int height=1){
+        Textbox* tbox = g_new(Textbox,1);
+        tbox->entry = gtk_entry_new_with_buffer(gtk_entry_buffer_new(buffer, length));
+        tbox->frame = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+        tbox->field_name = gtk_label_new(fieldname);
+        gtk_box_append(GTK_BOX(tbox->frame), tbox->field_name);
+        gtk_box_append(GTK_BOX(tbox->frame), tbox->entry);
+        gtk_grid_attach(grid, tbox->frame, grid_col, grid_row, width, height);
+        g_signal_connect(GTK_EDITABLE(tbox->entry), "changed", validator, tbox);
+        g_signal_connect(GTK_CELL_EDITABLE(tbox->entry), "activate", G_CALLBACK(editing_done), tbox);
+        g_signal_connect(GTK_EDITABLE(tbox->entry), "editing-done", G_CALLBACK(editing_done_2), tbox);
+        // gtk_entry_set_overwrite_mode(GTK_ENTRY(tbox->entry), true);
+        gtk_entry_set_placeholder_text(GTK_ENTRY(tbox->entry), placeholder);
+        tbox->valid = true;
+        tbox->default_text = placeholder;
+        niffie("got textbox");
+        return tbox;
+    }
+
+    static void set_invalid(Textbox* tbox){
+        tbox->valid = false;
+        niffie("invalid input");
+        const char* c = "invalid";
+        gtk_widget_add_css_class(tbox->entry, c);
+    }
+
+    static void valid_8bit(GtkWidget* entryfield, gpointer data){
+        Textbox* field = (Textbox*) data;
+        niffie("checking...");
+        string text = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(entryfield)));
+        for (char c: text){
+            if (c<'0' or c>'9'){
+                set_invalid(field);
+                return;
+            }
+        }
+        try {
+            float value = std::stof(text);
+            if(value == std::round(value)){
+                field->valid = true;
+                niffie("current val: "+std::to_string((int)value));
+            } else{
+                field->valid = false;
+                niffie("floating point?");
+            }
+        }
+        catch (const std::exception& e) {
+            niffie("invalid input");
+            field->valid = false;
+        }
+
+    }
+
+    static void editing_done(GtkWidget* entryfield, gpointer data){
+        Textbox* field = (Textbox*)data;
+        niffie("done?");
+        g_signal_emit_by_name(GTK_EDITABLE(field->entry), "changed");
+        if(!(field->valid) or gtk_entry_get_text_length(GTK_ENTRY(field->entry))==0){
+            int bufflen = std::strlen(field->default_text);
+            field->valid = true;
+            gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
+        }
+        g_signal_emit_by_name(GTK_EDITABLE(field->entry), "editing-done");
+    }
+    
+    static void editing_done_2(GtkWidget* entryfield, gpointer data){
+        Textbox* field = (Textbox*)data;
+        niffie("finally!");
+        if(!(field->valid) or gtk_entry_get_text_length(GTK_ENTRY(field->entry))==0){
+            int bufflen = std::strlen(field->default_text);
+            field->valid = true;
+            gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
+        }
+        // GtkWidget* root = gtk_widget_get_ancestor(entryfield, G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(field->frame)));
+        // gtk_widget_grab_focus(root);
+        // gtk_widget_set_can_focus(field->entry, false);
+        gtk_widget_set_focusable(field->field_name, true);
+        gtk_widget_set_can_focus(field->field_name, true);
+        gtk_widget_grab_focus(field->field_name);
+    }
+};
 
 static void activate(GtkApplication* app, gpointer user_data) {
     GtkWidget* window;
@@ -1124,6 +1233,11 @@ static void activate(GtkApplication* app, gpointer user_data) {
     grid=gtk_grid_new();
     niffie("begin ");
 
+    //load the stylesheet
+    css_provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_path(css_provider, "styles.css");
+    auto display = gdk_display_get_default();
+    gtk_style_context_add_provider_for_display(display, GTK_STYLE_PROVIDER(css_provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     //notebook with all of the color choosers 
     notebook=gtk_notebook_new();
@@ -1168,6 +1282,9 @@ static void activate(GtkApplication* app, gpointer user_data) {
             1,    /* n_params */     
             G_TYPE_STRING 
     );
+
+    Textbox* test_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "test", "0", "123", 3, 3, 1);
+
     
     ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 2, 3, 1, 1);
     g_signal_connect_data(GTK_WIDGET(hsl_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
@@ -1175,6 +1292,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(test_box->entry), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

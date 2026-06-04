@@ -684,7 +684,13 @@ public:
     }
 };
 
-struct HWBprops{
+class HWBTab :ColorChooserTab {
+private: 
+    GtkGesture* drag;
+    GtkWidget* frame;
+    GtkWidget* tab;
+    GtkWidget* content;
+    int page_num;
     float startx, starty;
     bool hwb_dragged_outside;
     float drag_dot_scale;
@@ -699,17 +705,8 @@ struct HWBprops{
     Geometry::LineGeneral2* NoBlackLine;
     Geometry::LineGeneral2* NoWhiteLine;
     float triangle_height;
-};
-HWBprops hwbprops;
 
-class HWBTab :ColorChooserTab {
-public: 
-    GtkGesture* drag;
-    GtkWidget* frame;
-    GtkWidget* tab;
-    GtkWidget* content;
-    int page_num;
-
+public:
     static HWBTab* HWBTabnew(GtkNotebook* notebook, const char* tab_name,
                              int width=400, int height=400){
         HWBTab* hwbtab = g_new(HWBTab, 1);
@@ -719,7 +716,7 @@ public:
         gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(hwbtab->content), width);
         gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(hwbtab->content), height);
         gtk_frame_set_child(GTK_FRAME(hwbtab->frame), hwbtab->content);
-        gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(hwbtab->content), draw, NULL, (GDestroyNotify)on_destroy_notify);
+        gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(hwbtab->content), draw, hwbtab, (GDestroyNotify)on_destroy_notify);
         g_signal_connect_after(GTK_DRAWING_AREA(hwbtab->content), "resize", G_CALLBACK(resize_cb), NULL);
         hwbtab->page_num=gtk_notebook_append_page(GTK_NOTEBOOK(notebook), hwbtab->frame, hwbtab->tab);
         hwbtab->drag=gtk_gesture_drag_new();
@@ -728,32 +725,38 @@ public:
         g_signal_connect(hwbtab->drag, "drag-begin", G_CALLBACK(drag_begin), hwbtab);
         g_signal_connect(hwbtab->drag, "drag-update", G_CALLBACK(drag_update), hwbtab);
         g_signal_connect(hwbtab->drag, "drag-end", G_CALLBACK(drag_end), hwbtab);
-        hwbprops.starty = 0;
-        hwbprops.startx = 0;
-        hwbprops.drag_bar_scale = 1.0;
-        hwbprops.drag_dot_scale = 1.0;
-        hwbprops.hwb_dragged_outside = false;
-        hwbprops.CentrePoint = g_new(Geometry::Point2, 1);
-        hwbprops.CentrePoint->x = float(width/2);
-        (hwbprops.CentrePoint->y) = float(height/2);
-        hwbprops.ring_outerradius = float(width/2 - 20);
-        hwbprops.ring_innerradius = hwbprops.ring_outerradius - 20.0;
-        hwbprops.triangle_height = (hwbprops.ring_innerradius - 15.0)*3.0 / 2.0;
+        hwbtab->starty = 0;
+        hwbtab->startx = 0;
+        hwbtab->drag_bar_scale = 1.0;
+        hwbtab->drag_dot_scale = 1.0;
+        hwbtab->hwb_dragged_outside = false;
+        hwbtab->CentrePoint = g_new(Geometry::Point2, 1);
+        hwbtab->CentrePoint->x = float(width/2);
+        (hwbtab->CentrePoint->y) = float(height/2);
+        hwbtab->ring_outerradius = float(width/2 - 20);
+        hwbtab->ring_innerradius = hwbtab->ring_outerradius - 20.0;
+        hwbtab->triangle_height = (hwbtab->ring_innerradius - 15.0)*3.0 / 2.0;
         Geometry::Point2* vertice = g_new(Geometry::Point2, 1);
-        *vertice = (Geometry::Point2){.x=0, .y=-(hwbprops.ring_innerradius - 15.0f)};
-        hwbprops.VividPoint = vertice;
-        hwbprops.WhitePoint = g_new(Geometry::Point2, 1);
-        hwbprops.BlackPoint = g_new(Geometry::Point2, 1);
-        *hwbprops.WhitePoint = GeoCalc_2d::rotate(vertice, 2.0*M_PI/3.0);
-        *hwbprops.BlackPoint = GeoCalc_2d::rotate(vertice, 4.0*M_PI/3.0);
-        hwbprops.NoIntensityLine = g_new(Geometry::LineGeneral2, 1);
-        hwbprops.NoBlackLine = g_new(Geometry::LineGeneral2, 1);
-        hwbprops.NoWhiteLine = g_new(Geometry::LineGeneral2, 1);
-        *hwbprops.NoIntensityLine = {.A=0, .B=1, .C=(vertice->y)/2};
-        *hwbprops.NoWhiteLine = {.A=std::sqrtf(3.0), .B=1, .C=-(vertice->y)};
-        *hwbprops.NoBlackLine = {.A=std::sqrtf(3.0), .B=-1, .C=(vertice->y)};
+        *vertice = (Geometry::Point2){.x=0, .y=-(hwbtab->ring_innerradius - 15.0f)};
+        hwbtab->VividPoint = vertice;
+        hwbtab->WhitePoint = g_new(Geometry::Point2, 1);
+        hwbtab->BlackPoint = g_new(Geometry::Point2, 1);
+        *hwbtab->WhitePoint = GeoCalc_2d::rotate(vertice, 2.0*M_PI/3.0);
+        *hwbtab->BlackPoint = GeoCalc_2d::rotate(vertice, 4.0*M_PI/3.0);
+        hwbtab->NoIntensityLine = g_new(Geometry::LineGeneral2, 1);
+        hwbtab->NoBlackLine = g_new(Geometry::LineGeneral2, 1);
+        hwbtab->NoWhiteLine = g_new(Geometry::LineGeneral2, 1);
+        *hwbtab->NoIntensityLine = {.A=0, .B=1, .C=(vertice->y)/2};
+        *hwbtab->NoWhiteLine = {.A=std::sqrtf(3.0), .B=1, .C=-(vertice->y)};
+        *hwbtab->NoBlackLine = {.A=std::sqrtf(3.0), .B=-1, .C=(vertice->y)};
         return hwbtab;
     }
+
+    GtkGesture* get_drag_gesture(){ return this->drag; }
+    GtkWidget* get_frame(){ return this->frame; }
+    GtkWidget* get_tab(){ return this->tab; }
+    GtkWidget* get_content(){ return this->content; }
+    int get_page_num(){ return this->page_num; }
 
     static void drag_begin(GtkGestureDrag* gesture, float x, float y, HWBTab* tab) {
         GtkWidget* area = tab->content;
@@ -764,31 +767,31 @@ public:
         x=dx; y=dy;
         niffie("drag"+std::to_string(dx)+' '+std::to_string(dy));
         Geometry::Point2 P = {.x=x, .y=y};
-        Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&P, hwbprops.CentrePoint);
-        if (polar.r <= hwbprops.ring_outerradius) {
+        Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&P, tab->CentrePoint);
+        if (polar.r <= tab->ring_outerradius) {
             ColorSpaces::HWB* current_hwb=g_new(ColorSpaces::HWB, 1);
             ColorSpaces::RGB t=_gdk_rgba_to_rgb(CURRENT_COLOR);
             *current_hwb=Converter::rgb_to_hwb(&t);
             Geometry::Point2 coords;
-            coords.x = x - hwbprops.CentrePoint->x;
-            coords.y = y - hwbprops.CentrePoint->y;
+            coords.x = x - tab->CentrePoint->x;
+            coords.y = y - tab->CentrePoint->y;
             coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
             niffie("coords: "+std::to_string(coords.x)+' '+std::to_string(coords.y));
-            if(polar.r >= hwbprops.ring_innerradius){
-                hwbprops.drag_bar_scale = 1.5;
-                hwbprops.startx = x;
-                hwbprops.starty = y;
+            if(polar.r >= tab->ring_innerradius){
+                tab->drag_bar_scale = 1.5;
+                tab->startx = x;
+                tab->starty = y;
                 current_hwb->h = std::fmodf(polar.angle + 0.5f * M_PI, (2 * M_PI)) / (2 * M_PI);
                 t=Converter::hwb_to_rgb(current_hwb);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
-            } else if(GeoCalc_2d::inside_triangle(&coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
+            } else if(GeoCalc_2d::inside_triangle(&coords, tab->BlackPoint, tab->WhitePoint, tab->VividPoint)){
                 niffie("in triangle");
-                hwbprops.drag_dot_scale=1.5;
+                tab->drag_dot_scale=1.5;
                 current_hue = current_hwb->h;
-                hwbprops.startx = x;
-                hwbprops.starty = y;
-                current_hwb->w = GeoCalc_2d::distance(&coords, hwbprops.NoWhiteLine) / hwbprops.triangle_height;
-                current_hwb->b = GeoCalc_2d::distance(&coords, hwbprops.NoBlackLine) / hwbprops.triangle_height;
+                tab->startx = x;
+                tab->starty = y;
+                current_hwb->w = GeoCalc_2d::distance(&coords, tab->NoWhiteLine) / tab->triangle_height;
+                current_hwb->b = GeoCalc_2d::distance(&coords, tab->NoBlackLine) / tab->triangle_height;
                 t=Converter::hwb_to_rgb(current_hwb);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
             }
@@ -806,29 +809,29 @@ public:
         bool sth=gtk_gesture_drag_get_offset(gesture, &dx, &dy);
         niffie("hwb   drag "+std::to_string(dx)+' '+std::to_string(dy));
         x=dx; y=dy;
-        x+=hwbprops.startx;
-        y+=hwbprops.starty;
+        x+=tab->startx;
+        y+=tab->starty;
         ColorSpaces::HWB* current_hwb=g_new(ColorSpaces::HWB, 1);
         ColorSpaces::RGB t=_gdk_rgba_to_rgb(CURRENT_COLOR);
         *current_hwb=Converter::rgb_to_hwb(&t);
-        niffie(std::to_string(hwbprops.drag_dot_scale)+' '+std::to_string(hwbprops.drag_bar_scale));
-        hwbprops.hwb_dragged_outside = false;
-        if (hwbprops.drag_dot_scale>1.0) {
+        niffie(std::to_string(tab->drag_dot_scale)+' '+std::to_string(tab->drag_bar_scale));
+        tab->hwb_dragged_outside = false;
+        if (tab->drag_dot_scale>1.0) {
             niffie("dragging the dot ----------------------------");
             Geometry::Point2 coords = {.x = x, .y = y};
-            Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, hwbprops.CentrePoint);
-            coords.x = x - hwbprops.CentrePoint->x;
-            coords.y = y - hwbprops.CentrePoint->y;
+            Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, tab->CentrePoint);
+            coords.x = x - tab->CentrePoint->x;
+            coords.y = y - tab->CentrePoint->y;
             coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
-            if(!GeoCalc_2d::inside_triangle(&coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
-                hwbprops.hwb_dragged_outside = true;
+            if(!GeoCalc_2d::inside_triangle(&coords, tab->BlackPoint, tab->WhitePoint, tab->VividPoint)){
+                tab->hwb_dragged_outside = true;
                 float rmax = polar.r, rmin = 0, rcandidate;
                 while(abs(rmax-rmin) > 0.05){
                     rcandidate = (rmin + rmax)/2.0f;
                     polar.r = rcandidate;
                     coords = GeoCalc_2d::polar_to_cartesian(&polar);
                     coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
-                    if(GeoCalc_2d::inside_triangle(&coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
+                    if(GeoCalc_2d::inside_triangle(&coords, tab->BlackPoint, tab->WhitePoint, tab->VividPoint)){
                         rmin = rcandidate;
                     } else{
                         rmax = rcandidate;
@@ -838,14 +841,14 @@ public:
                 coords = GeoCalc_2d::polar_to_cartesian(&polar);
                 coords = GeoCalc_2d::rotate(&coords, -(current_hwb->h * 2 * M_PI));
             }
-            current_hwb->w = GeoCalc_2d::distance(&coords, hwbprops.NoWhiteLine) / hwbprops.triangle_height;
-            current_hwb->b = GeoCalc_2d::distance(&coords, hwbprops.NoBlackLine) / hwbprops.triangle_height;
+            current_hwb->w = GeoCalc_2d::distance(&coords, tab->NoWhiteLine) / tab->triangle_height;
+            current_hwb->b = GeoCalc_2d::distance(&coords, tab->NoBlackLine) / tab->triangle_height;
             current_hwb->h = current_hue;
             t=Converter::hwb_to_rgb(current_hwb);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
-        } else if (hwbprops.drag_bar_scale>1.0) {
+        } else if (tab->drag_bar_scale>1.0) {
             Geometry::Point2 coords = {.x = x, .y = y};
-            Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, hwbprops.CentrePoint);
+            Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, tab->CentrePoint);
             current_hwb->h = std::fmodf(polar.angle + 0.5f * M_PI, (2 * M_PI)) / (2 * M_PI);
             t=Converter::hwb_to_rgb(current_hwb);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
@@ -859,9 +862,9 @@ public:
         GtkWidget* area = tab->content;
         int width=gtk_widget_get_width(area);
         int height=gtk_widget_get_height(area);
-        hwbprops.drag_dot_scale=1.0;
-        hwbprops.drag_bar_scale=1.0;
-        hwbprops.hwb_dragged_outside = false;
+        tab->drag_dot_scale=1.0;
+        tab->drag_bar_scale=1.0;
+        tab->hwb_dragged_outside = false;
         double dx, dy;
         bool sth=gtk_gesture_drag_get_start_point(gesture, &dx, &dy);
         x=dx; y=dy;
@@ -870,6 +873,7 @@ public:
 
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
+        HWBTab* tab = (HWBTab*)data;
         g_signal_emit_by_name(drawing_area, "color-change");
         GdkRGBA* color=g_new(GdkRGBA, 1);
         *color=*CURRENT_COLOR;
@@ -893,7 +897,7 @@ public:
         hwbpix->a = 1.0;
         Geometry::Point2* coords = g_new(Geometry::Point2, 1);
         Geometry::Polar2 polar;
-        if(hwbprops.drag_dot_scale > 1.0){
+        if(tab->drag_dot_scale > 1.0){
             hue = current_hue;
             hwb_color->h = hue;
         }
@@ -905,11 +909,11 @@ public:
             pixel = buffer + (j*stride)/4;
             for(int i=0;i<width_;i++){
                 coords->x = i; coords->y = j;
-                coords->x -= hwbprops.CentrePoint->x;
-                coords->y -= hwbprops.CentrePoint->y;
+                coords->x -= tab->CentrePoint->x;
+                coords->y -= tab->CentrePoint->y;
                 polar = GeoCalc_2d::cartesian_to_polar(coords);
                 *coords = GeoCalc_2d::rotate(coords, - hue_angle);
-                if(polar.r <= hwbprops.ring_outerradius and polar.r >= hwbprops.ring_innerradius){
+                if(polar.r <= tab->ring_outerradius and polar.r >= tab->ring_innerradius){
                     hwbpix->h = (polar.angle + M_PI * 0.5f) / (M_PI * 2.0f);
                     if (hwbpix->h < 0){
                         hwbpix->h += 1.0f;
@@ -917,12 +921,12 @@ public:
                     hwbpix->w = 0; hwbpix->b = 0;
                     t = Converter::hwb_to_rgb(hwbpix);
                     pixcolor = Converter::float_to_int_rgb(&t);
-                } else if(polar.r <= hwbprops.triangle_height*2.0f/3.0f 
-                    and GeoCalc_2d::inside_triangle(coords, hwbprops.BlackPoint, hwbprops.WhitePoint, hwbprops.VividPoint)){
+                } else if(polar.r <= tab->triangle_height*2.0f/3.0f 
+                    and GeoCalc_2d::inside_triangle(coords, tab->BlackPoint, tab->WhitePoint, tab->VividPoint)){
                     //calculate pixel color inside hwb triangle
                     hwbpix->h = hue;
-                    hwbpix->w = (GeoCalc_2d::distance(coords, hwbprops.NoWhiteLine) / hwbprops.triangle_height);
-                    hwbpix->b = (GeoCalc_2d::distance(coords, hwbprops.NoBlackLine) / hwbprops.triangle_height);
+                    hwbpix->w = (GeoCalc_2d::distance(coords, tab->NoWhiteLine) / tab->triangle_height);
+                    hwbpix->b = (GeoCalc_2d::distance(coords, tab->NoBlackLine) / tab->triangle_height);
                     t = Converter::hwb_to_rgb(hwbpix);
                     pixcolor = Converter::float_to_int_rgb(&t);
                 } else{
@@ -955,18 +959,18 @@ public:
         std::swap(innerborder, outerborder);
         //painting the color ring's handle
         cairo_set_source_rgba(cr, outerborder->red, outerborder->green, outerborder->blue, outerborder->alpha);
-        cairo_arc(cr, hwbprops.CentrePoint->x, hwbprops.CentrePoint->y, hwbprops.ring_outerradius+2.5, 
-                hue_angle - 0.05f*hwbprops.drag_bar_scale, hue_angle + 0.05f*hwbprops.drag_bar_scale);
-        cairo_arc_negative(cr, hwbprops.CentrePoint->x, hwbprops.CentrePoint->y, hwbprops.ring_innerradius-2.5,
-                hue_angle + 0.05f*hwbprops.drag_bar_scale, hue_angle - 0.05f*hwbprops.drag_bar_scale);
+        cairo_arc(cr, tab->CentrePoint->x, tab->CentrePoint->y, tab->ring_outerradius+2.5, 
+                hue_angle - 0.05f*tab->drag_bar_scale, hue_angle + 0.05f*tab->drag_bar_scale);
+        cairo_arc_negative(cr, tab->CentrePoint->x, tab->CentrePoint->y, tab->ring_innerradius-2.5,
+                hue_angle + 0.05f*tab->drag_bar_scale, hue_angle - 0.05f*tab->drag_bar_scale);
         cairo_close_path(cr);
         cairo_stroke(cr);
         cairo_new_path(cr);
         cairo_set_source_rgba(cr, innerborder->red, innerborder->green, innerborder->blue, innerborder->alpha);
-        cairo_arc(cr, hwbprops.CentrePoint->x, hwbprops.CentrePoint->y, hwbprops.ring_outerradius+1.3, 
-                hue_angle - 0.04f*hwbprops.drag_bar_scale, hue_angle + 0.04f*hwbprops.drag_bar_scale);
-        cairo_arc_negative(cr, hwbprops.CentrePoint->x, hwbprops.CentrePoint->y, hwbprops.ring_innerradius-1.3,
-                hue_angle + 0.04f*hwbprops.drag_bar_scale, hue_angle - 0.04f*hwbprops.drag_bar_scale);
+        cairo_arc(cr, tab->CentrePoint->x, tab->CentrePoint->y, tab->ring_outerradius+1.3, 
+                hue_angle - 0.04f*tab->drag_bar_scale, hue_angle + 0.04f*tab->drag_bar_scale);
+        cairo_arc_negative(cr, tab->CentrePoint->x, tab->CentrePoint->y, tab->ring_innerradius-1.3,
+                hue_angle + 0.04f*tab->drag_bar_scale, hue_angle - 0.04f*tab->drag_bar_scale);
         cairo_close_path(cr);
         cairo_stroke(cr);
         cairo_new_path(cr);
@@ -976,22 +980,22 @@ public:
         }
 
         //painting the dot inside the triangle
-        Geometry::Point2 dot_centre = *hwbprops.WhitePoint;
-        Vector2 v(hwbprops.WhitePoint, hwbprops.VividPoint);
+        Geometry::Point2 dot_centre = *tab->WhitePoint;
+        Vector2 v(tab->WhitePoint, tab->VividPoint);
         t=_gdk_rgba_to_rgb(color);
         ColorSpaces::HSV hsv_color = Converter::rgb_to_hsv(&t);
         v = v.multiply(hsv_color.v);
         dot_centre = GeoCalc_2d::move(&dot_centre, &v);
-        v = Vector2(hwbprops.VividPoint, hwbprops.BlackPoint);
+        v = Vector2(tab->VividPoint, tab->BlackPoint);
         v = v.multiply((1 - hsv_color.s) * hsv_color.v);
         dot_centre = GeoCalc_2d::move(&dot_centre, &v);
         
         niffie("dot: "+std::to_string(dot_centre.x)+' '+std::to_string(dot_centre.y));
         dot_centre = GeoCalc_2d::rotate(&dot_centre, (- hue_angle) + M_PI*0.5f);
         niffie("dot: "+std::to_string(dot_centre.x)+' '+std::to_string(dot_centre.y));
-        float dot_x = hwbprops.CentrePoint->x + dot_centre.x;
-        float dot_y = hwbprops.CentrePoint->y - dot_centre.y;
-        float dot_radius = 10.0f * hwbprops.drag_dot_scale + 2; 
+        float dot_x = tab->CentrePoint->x + dot_centre.x;
+        float dot_y = tab->CentrePoint->y - dot_centre.y;
+        float dot_radius = 10.0f * tab->drag_dot_scale + 2; 
         cairo_set_source_rgba(cr, outerborder->red, outerborder->green, outerborder->blue, outerborder->alpha);
         cairo_arc(cr, dot_x, dot_y, dot_radius, 0, 2*M_PI);
         cairo_stroke(cr);
@@ -1016,14 +1020,14 @@ public:
     }
 };
 
-static gulong eyedropper_handler_id;
-
 class Eyedropper {
-public:
+private:
     GtkWidget* button;
     GtkEventController* enter;
     guint timeout;
+    gulong handler_id;
 
+public:
     static Eyedropper* Eyedropper_new(GtkGrid* grid, const char* button_name=NULL, const char* icon_name=NULL,
                                       int grid_row=0, int grid_col=0, int width=1, int height=1) {
         Eyedropper* eyedropper=g_new(Eyedropper, 1);
@@ -1050,7 +1054,7 @@ public:
     static void togglebutton(GtkToggleButton* button, float x, float y, Eyedropper* eyedropper){
         bool button_is_active = gtk_toggle_button_get_active(button);
         if(button_is_active){
-            eyedropper_handler_id=g_signal_connect_data(eyedropper->enter, "key-pressed", G_CALLBACK(eyedropper_end), eyedropper, on_closure_notify, G_CONNECT_SWAPPED);
+            eyedropper->handler_id=g_signal_connect_data(eyedropper->enter, "key-pressed", G_CALLBACK(eyedropper_end), eyedropper, on_closure_notify, G_CONNECT_SWAPPED);
             eyedropper->timeout = g_timeout_add(100, eyedropper_run, (Eyedropper*)eyedropper);
         } else{
             if (eyedropper->timeout != 0) {
@@ -1073,7 +1077,7 @@ public:
     static void eyedropper_end(Eyedropper* eyedropper, float x, float y) {
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(eyedropper->button), false);
         getpixcolor();
-        g_signal_handler_disconnect(eyedropper->enter, eyedropper_handler_id);
+        g_signal_handler_disconnect(eyedropper->enter, eyedropper->handler_id);
         g_signal_emit_by_name(GTK_WIDGET(eyedropper->button), "color-change");
     }
 
@@ -1111,6 +1115,12 @@ public:
         GtkIconTheme* theme = gtk_icon_theme_get_for_display(display);
         return (bool) gtk_icon_theme_has_icon(theme, name);
     }
+
+    GtkWidget* get_button(){ return this->button; }
+    GtkEventController* get_enter_controller(){ return this->enter; }
+    guint get_timeout(){ return this->timeout; }
+    gulong get_handler_id(){ return this->handler_id; }
+
 };
 
 static void activate(GtkApplication* app, gpointer user_data) {
@@ -1159,7 +1169,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     eyedropper->resize(50,50);
     my_widget_signals[TOGGLE_PICKER_SIGNAL] = g_signal_new(
             "color-change",
-            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(eyedropper->button)),
+            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(eyedropper->get_button())),
             G_SIGNAL_RUN_FIRST,     
             0, /* class offset for default handler */     
             nullptr, nullptr,     
@@ -1172,9 +1182,9 @@ static void activate(GtkApplication* app, gpointer user_data) {
     ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 2, 3, 1, 1);
     g_signal_connect_data(GTK_WIDGET(hsl_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(hsv_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->content), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_WIDGET(eyedropper->button), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

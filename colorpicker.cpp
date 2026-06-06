@@ -1166,10 +1166,24 @@ public:
         gtk_widget_add_css_class(tbox->entry, c);
     }
 
+    static void set_valid(Textbox* tbox){
+        tbox->valid = true;
+        niffie("valid input");
+        const char* c = "invalid";
+        bool was_invalid = gtk_widget_has_css_class(tbox->entry, c);
+        if(was_invalid){
+            gtk_widget_remove_css_class(tbox->entry, c);
+        }
+    }
+
     static void valid_8bit(GtkWidget* entryfield, gpointer data){
         Textbox* field = (Textbox*) data;
         niffie("checking...");
         string text = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(entryfield)));
+        if(gtk_entry_get_text_length(GTK_ENTRY(field->entry))==0){
+            set_valid(field);
+            return;
+        }
         for (char c: text){
             if (c<'0' or c>'9'){
                 set_invalid(field);
@@ -1178,17 +1192,46 @@ public:
         }
         try {
             float value = std::stof(text);
-            if(value == std::round(value)){
-                field->valid = true;
+            if(value == std::round(value)  and 0 <= value and value < 256){
+                set_valid(field);
                 niffie("current val: "+std::to_string((int)value));
             } else{
-                field->valid = false;
+                set_invalid(field);
                 niffie("floating point?");
             }
         }
         catch (const std::exception& e) {
-            niffie("invalid input");
-            field->valid = false;
+            set_invalid(field);
+        }
+
+    }
+
+    static void valid_0_to_1_float(GtkWidget* entryfield, gpointer data){
+        Textbox* field = (Textbox*) data;
+        niffie("checking...");
+        string text = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(entryfield)));
+        if(gtk_entry_get_text_length(GTK_ENTRY(field->entry))==0){
+            set_valid(field);
+            return;
+        }
+        for (char c: text){
+            if ((c<'0' or c>'9') and c!='.'){
+                set_invalid(field);
+                return;
+            }
+        }
+        try {
+            float value = std::stof(text);
+            if(0 <= value and value <= 1){
+                set_valid(field);
+                niffie("current val: "+std::to_string(value));
+            } else{
+                set_invalid(field);
+                niffie("floating point?");
+            }
+        }
+        catch (const std::exception& e) {
+            set_invalid(field);
         }
 
     }
@@ -1216,9 +1259,9 @@ public:
         // GtkWidget* root = gtk_widget_get_ancestor(entryfield, G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(field->frame)));
         // gtk_widget_grab_focus(root);
         // gtk_widget_set_can_focus(field->entry, false);
-        gtk_widget_set_focusable(field->field_name, true);
-        gtk_widget_set_can_focus(field->field_name, true);
-        gtk_widget_grab_focus(field->field_name);
+        // gtk_widget_set_focusable(field->field_name, true);
+        // gtk_widget_set_can_focus(field->field_name, true);
+        // gtk_widget_grab_focus(field->field_name);
     }
 };
 

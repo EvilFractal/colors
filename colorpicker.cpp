@@ -12,15 +12,13 @@ GdkRGBA* CURRENT_COLOR;
 
 static cairo_surface_t* surface=NULL;
 
-float drag_dot_scale=1.0;
-float drag_bar_scale=1.0;
-
 class ColorTile;
 void update(GtkWidget* widget, gpointer data);
 
 enum { TOGGLE_PICKER_SIGNAL,   DRAW_ACTION_SIGNAL,    LAST_SIGNAL};
 static guint my_widget_signals[LAST_SIGNAL] = { 0 };
 
+/* convert ColorSpaces::RGB color format to GdkRGBA */
 GdkRGBA _rgb_to_gdk_rgba(ColorSpaces::RGB* color) {
     GdkRGBA result; 
     result.red=color->r;
@@ -30,6 +28,7 @@ GdkRGBA _rgb_to_gdk_rgba(ColorSpaces::RGB* color) {
     return result;
 }
 
+/* convert GdkRGBA color format to ColorSpaces::RGB */
 ColorSpaces::RGB _gdk_rgba_to_rgb(GdkRGBA* color) {
     ColorSpaces::RGB result;
     result.r=color->red;
@@ -39,11 +38,13 @@ ColorSpaces::RGB _gdk_rgba_to_rgb(GdkRGBA* color) {
     return result;
 }
 
+/* convenience function for printing stuff */
 void niffie(std::string message) {
     std::cout<<message<<'\n'<<std::flush;
     return;
 }
 
+/* clear the surface */
 void clear_surface(GdkRGBA* color) {
     cairo_t* cr;
     cr=cairo_create(surface);
@@ -68,27 +69,39 @@ void resize_cb(GtkWidget* widget, int width, int height, gpointer   data) {
     }
 }
 
-void paint_tile(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
-    cairo_set_source_surface(cr, surface, 0, 0);
-    GdkRGBA* color=((GdkRGBA*)data);
-    cairo_set_source_rgba(cr, color->red, color->green, color->blue, color->alpha);
-    cairo_paint(cr);
-}
 
+/** dummy function to fill 'GClosureNotify' field 
+ * as it is required but does nothing
+*/
 static void on_closure_notify(gpointer data, GClosure *closure){
     return;
 }
+
+/* 'GDestroyNotify', destroys given data */
 static void on_destroy_notify(gpointer data){
     g_free(data);
 }
 
 class ColorTile {
 private:
-    GtkWidget* frame;
-    GtkWidget* tile;
-    GdkRGBA* color;
+    GtkWidget* frame; /* contains the tile */
+    GtkWidget* tile; /* rectangle of a specific color */
+    GdkRGBA* color; /* color of the tile */
 
 public:
+    /** method for constructing a ColorTile 
+     * 
+     * @param parent the parent widget (container) in which will the tile reside
+     * @param def_color default (initial) color of the tile
+     * @param width tile width in pixels
+     * @param height tile height in pixels
+     * 
+     * if the parent is a grid:
+     * @param grid_column column where the tile should be put
+     * @param grid_row row where the tile should be put
+     * @param grid_vert_span how many rows should the tile span
+     * @param grid_hz_span how many columns should the tile span
+     */
     static ColorTile * ColorTilenew(GtkWidget* parent, GdkRGBA* def_color,
         int width=50, int height=50,
         int grid_column=0, int grid_row=0, int grid_vert_span=1, int grid_hz_span=1) {
@@ -115,57 +128,75 @@ public:
         return tile;
     }
 
-    GtkWidget* get_tile(){ return tile; }
-    GtkWidget* get_frame(){ return frame; }
-    GdkRGBA* get_color(){ return color; }
+    GtkWidget* get_tile(){ return tile; } /* get the drawingArea of the tile */
+    GtkWidget* get_frame(){ return frame; } /* get the frame of the tile */
+    GdkRGBA* get_color(){ return color; } /* get the color of the tile */
+
+    /* GtkDrawingAreaDrawFunc drawing function of the tile */
+    static void paint_tile(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
+        cairo_set_source_surface(cr, surface, 0, 0);
+        GdkRGBA* color=((GdkRGBA*)data);
+        cairo_set_source_rgba(cr, color->red, color->green, color->blue, color->alpha);
+        cairo_paint(cr);
+    }
 
 };
 
+/* utility function for passing update signal to a widget */
 void update(GtkWidget* widget, gpointer data){
     gtk_widget_queue_draw(widget);
 }
 
+/* utility function for passing update signal to a notebook */
 void update_nb(GtkNotebook* notebook, gpointer data){
     int active_page = gtk_notebook_get_current_page(notebook);
     gtk_widget_queue_draw(gtk_frame_get_child(GTK_FRAME(gtk_notebook_get_nth_page(notebook, active_page))));
 
 }
 
-void free_tile(ColorTile* obj) {
-    g_free(obj);
-}
 float current_hue=0.0;
 
+/** dummy function to fill window closing callback
+ * does nothing
+ */
 static void close_window(gpointer window) {
     return;
 }
 
-float startx, starty;
-
+/** color chooser class primarily to be used as a notebook tab
+ * @class ColorChooserTab 
+ */
 class ColorChooserTab {
 protected:
-    GtkGesture* drag;
-    GtkWidget* frame; //contains all insides, especially content
-    GtkWidget* tab; //the notebook tab that holds the label
-    GtkWidget* content; //DrawingArea to render the chooser
-    int page_num;
+    GtkGesture* drag; /* drag gesture to interact with the chooser */
+    GtkWidget* frame; /* contains all insides, especially content */
+    GtkWidget* tab; /* the notebook tab that holds the label */
+    GtkWidget* content; /* DrawingArea to render the chooser */
+    int page_num; /* notebook tab page number of the chooser */
 
 public:
-    GtkGesture* get_drag_gesture(){ return drag; }
-    GtkWidget* get_frame(){ return frame; }
-    GtkWidget* get_tab(){ return tab; }
-    GtkWidget* get_content(){ return content; }
-    int get_page_num(){ return page_num; }
+    GtkGesture* get_drag_gesture(){ return drag; } /* get the drag gesture to interact with the chooser */
+    GtkWidget* get_frame(){ return frame; } /* get the frame of the chooser tab */
+    GtkWidget* get_tab(){ return tab; } /* get the tab that allows to switch to the page of the chooser */
+    GtkWidget* get_content(){ return content; } /* get the drawingArea that contains the chooser */
+    int get_page_num(){ return page_num; } /* get the number of the notebook page the chooser is at */
 };
 
 class HSLTab :public ColorChooserTab {
 private:
-    float startx, starty;
-    bool hsl_dragged_farright;
-    float drag_dot_scale;
-    float drag_bar_scale;
+    float startx, starty; /* start coordinates of a gesture */
+    bool hsl_dragged_farright; /* was the dot dragged beyond right border, needed to preserve position of the dot */
+    float drag_dot_scale; /* if not 1.0, then the user is probably dragging the dot */
+    float drag_bar_scale; /* if not 1.0, the bar is probably being dragged */
 
 public:
+    /** method for constructing a HSLTab
+     * 
+     * @param notebook the notebook of which the page shall it be
+     * @param tab_name string to display as the tab name
+     * @param width page width in pixels
+     * @param height page height in pixels
+     */
     static HSLTab* HSLTabnew(GtkNotebook* notebook, const char* tab_name, int width=400, int height=400) {
         HSLTab* hsltab = g_new(HSLTab, 1);
         hsltab->frame=gtk_frame_new(NULL);
@@ -191,6 +222,7 @@ public:
         return hsltab;
     }
 
+    /** GCallback for drag gesture start for the hsl tab */
     static void drag_begin(GtkGestureDrag* gesture, float x, float y, HSLTab* tab) {
         int width=gtk_widget_get_width(tab->content);
         int height=gtk_widget_get_height(tab->content);
@@ -227,6 +259,7 @@ public:
         gtk_widget_queue_draw(tab->content);
     }
 
+    /* GCallback for drag gesture updates for the hsl tab */
     static void drag_update(GtkGestureDrag* gesture, float x, float y, HSLTab* tab) {
         float width=gtk_widget_get_width(tab->content);
         float height=gtk_widget_get_height(tab->content);
@@ -267,6 +300,7 @@ public:
         gtk_widget_queue_draw(tab->content);
     }
 
+    /* GCallback for drag gesture end for the hsl tab */
     static void drag_end(GtkGestureDrag* gesture, float x, float y, HSLTab* tab) {
         int width=gtk_widget_get_width(tab->content);
         int height=gtk_widget_get_height(tab->content);
@@ -278,6 +312,8 @@ public:
         gtk_widget_queue_draw(tab->content);
     }
 
+    /* GtkDrawingAreaDrawFunc drawing function of the hsl tab
+     * from outside called by gtk_widget_queue_draw(drawing_area) */
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
         g_signal_emit_by_name(drawing_area, "color-change");
@@ -421,12 +457,19 @@ public:
 class HSVTab :public ColorChooserTab {
 
 private:
-    float startx, starty;
-    bool hsv_dragged_farright;
-    float drag_dot_scale;
-    float drag_bar_scale;
+    float startx, starty; /* start coordinates of a gesture */
+    bool hsv_dragged_farright; /* was the dot dragged beyond right border, needed to preserve position of the dot */
+    float drag_dot_scale; /* if not 1.0, then the user is probably dragging the dot */
+    float drag_bar_scale; /* if not 1.0, the bar is probably being dragged */
 
 public:
+    /** metho, needed to preserod for constructing a HSVTab
+     * 
+     * @param notebook the notebook of which the page shall it be
+     * @param tab_name string to display as the tab name
+     * @param width page width in pixels
+     * @param height page height in pixels
+     */
     static HSVTab* HSVTabnew(GtkNotebook* notebook, const char* tab_name,
                             int width=400, int height=400) {
         HSVTab* hsvtab = g_new(HSVTab, 1);
@@ -453,7 +496,7 @@ public:
         return hsvtab;
     }
 
-
+    /* GCallback for drag gesture start for the hsv tab */
     static void drag_begin(GtkGestureDrag* gesture, float x, float y, HSVTab* tab) {
         int width=gtk_widget_get_width(tab->content);
         int height=gtk_widget_get_height(tab->content);
@@ -490,6 +533,7 @@ public:
         gtk_widget_queue_draw(tab->content);
     }
 
+    /* GCallback for drag gesture updates for the hsv tab */
     static void drag_update(GtkGestureDrag* gesture, float x, float y, HSVTab* tab) {
         float width=gtk_widget_get_width(tab->content);
         float height=gtk_widget_get_height(tab->content);
@@ -530,6 +574,7 @@ public:
         gtk_widget_queue_draw(tab->content);
     }
 
+    /* GCallback for drag gesture end for the hsv tab */
     static void drag_end(GtkGestureDrag* gesture, float x, float y, HSVTab* tab) {
         int width=gtk_widget_get_width(tab->content);
         int height=gtk_widget_get_height(tab->content);
@@ -541,6 +586,8 @@ public:
         gtk_widget_queue_draw(tab->content);
     }
 
+    /* GtkDrawingAreaDrawFunc drawing function of the hsv tab 
+     * from outside called by gtk_widget_queue_draw(drawing_area) */
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
         g_signal_emit_by_name(drawing_area, "color-change");
@@ -683,22 +730,29 @@ public:
 
 class HWBTab :public ColorChooserTab {
 private: 
-    float startx, starty;
-    bool hwb_dragged_outside;
-    float drag_dot_scale;
-    float drag_bar_scale;
-    float ring_innerradius;
-    float ring_outerradius;
-    Geometry::Point2* CentrePoint;
-    Geometry::Point2* VividPoint; 
-    Geometry::Point2* BlackPoint;
-    Geometry::Point2* WhitePoint;
-    Geometry::LineGeneral2* NoIntensityLine;
-    Geometry::LineGeneral2* NoBlackLine;
-    Geometry::LineGeneral2* NoWhiteLine;
-    float triangle_height;
+    float startx, starty; /* start coordinates of a gesture */
+    bool hwb_dragged_outside; /* was the dot dragged out of the ring/triangle, needed to preserve position of the dot */
+    float drag_dot_scale; /* if not 1.0, then the user is probably dragging the dot */
+    float drag_bar_scale; /* if not 1.0, the bar is probably being dragged */
+    float ring_innerradius; /* inner ring radius */
+    float ring_outerradius; /* outer ring radius */
+    Geometry::Point2* CentrePoint; /* central point of the rotating triangle & outer ring*/
+    Geometry::Point2* VividPoint; /* the vivid vertice of the triangle */
+    Geometry::Point2* BlackPoint; /* the black vertice of the triangle */
+    Geometry::Point2* WhitePoint; /* the white vertice of the triangle */
+    Geometry::LineGeneral2* NoIntensityLine; /* line containing the edge between black & white vertices */
+    Geometry::LineGeneral2* NoBlackLine; /* line containing the edge between white & vivid vertices */
+    Geometry::LineGeneral2* NoWhiteLine; /* line containing the edge between black & vivid vertices */
+    float triangle_height; /* the equilateral triangle chooser height */
 
 public:
+    /** method for constructing a HWBTab
+     * 
+     * @param notebook the notebook of which the page shall it be
+     * @param tab_name string to display as the tab name
+     * @param width page width in pixels
+     * @param height page height in pixels
+     */
     static HWBTab* HWBTabnew(GtkNotebook* notebook, const char* tab_name,
                              int width=400, int height=400){
         HWBTab* hwbtab = g_new(HWBTab, 1);
@@ -744,6 +798,7 @@ public:
         return hwbtab;
     }
 
+    /* GCallback for drag gesture start for the hwb tab */
     static void drag_begin(GtkGestureDrag* gesture, float x, float y, HWBTab* tab) {
         GtkWidget* area = tab->content;
         int width=gtk_widget_get_width(area);
@@ -787,6 +842,7 @@ public:
         gtk_widget_queue_draw(area);
     }
 
+    /* GCallback for drag gesture updates for the hwb tab */
     static void drag_update(GtkGestureDrag* gesture, float x, float y, HWBTab* tab) {
         GtkWidget* area = tab->content;
         float width=gtk_widget_get_width(area);
@@ -844,6 +900,7 @@ public:
         gtk_widget_queue_draw(area);
     }
 
+    /* GCallback for drag gesture end for the hwb tab */
     static void drag_end(GtkGestureDrag* gesture, float x, float y, HWBTab* tab) {
         GtkWidget* area = tab->content;
         int width=gtk_widget_get_width(area);
@@ -857,6 +914,8 @@ public:
         gtk_widget_queue_draw(area);
     }
 
+    /* GtkDrawingAreaDrawFunc drawing function of the hwb tab 
+     * from outside called by gtk_widget_queue_draw(drawing_area) */
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
         HWBTab* tab = (HWBTab*)data;
@@ -1008,12 +1067,22 @@ public:
 
 class Eyedropper {
 private:
-    GtkWidget* button;
-    GtkEventController* enter;
-    guint timeout;
-    gulong handler_id;
+    GtkWidget* button; /* button activating the screen color picker (eyedropper) */
+    GtkEventController* enter; /* event controller for capturing picking mode off 'enter' key */
+    guint timeout; /* [ms] interval on which is the picking method called when active */
+    gulong handler_id; /* 'enter' event controller handler id */
 
 public:
+    /** method for constructing aan Eyedropper
+     * 
+     * @param grid the parent grid on which shall the eyedropper button reside
+     * @param button_name text to put on the button if icon not possible
+     * @param icon_name name of the icon to be displayed on the button
+     * @param grid_row row where the tile should be put
+     * @param grid_col column where the tile should be put
+     * @param width how many columns should the tile span
+     * @param height how many rows should the tile span
+     */
     static Eyedropper* Eyedropper_new(GtkGrid* grid, const char* button_name=NULL, const char* icon_name=NULL,
                                       int grid_row=0, int grid_col=0, int width=1, int height=1) {
         Eyedropper* eyedropper=g_new(Eyedropper, 1);
@@ -1033,15 +1102,17 @@ public:
         return eyedropper;
     }
 
-    GtkWidget* get_button(){ return this->button; }
-    GtkEventController* get_enter_controller(){ return this->enter; }
-    guint get_timeout(){ return this->timeout; }
-    gulong get_handler_id(){ return this->handler_id; }
+    GtkWidget* get_button(){ return this->button; } /* get the eyedropper button */
+    GtkEventController* get_enter_controller(){ return this->enter; } /* get the event controller that captures 'enter' key */
+    guint get_timeout(){ return this->timeout; } /* [ms] interval on which is the picking method called when active */
+    gulong get_handler_id(){ return this->handler_id; } /* get 'enter' event controller handler id */
 
+    /* set eyedropper button dimensions */
     void resize(int width, int height){
         gtk_widget_set_size_request(GTK_WIDGET(button), width, height);
     }
 
+    /* deals with button toggling, activates/deactivates eyedropper*/
     static void togglebutton(GtkToggleButton* button, float x, float y, Eyedropper* eyedropper){
         bool button_is_active = gtk_toggle_button_get_active(button);
         if(button_is_active){
@@ -1057,6 +1128,7 @@ public:
         g_signal_emit_by_name(GTK_WIDGET(button), "color-change");
     }
 
+    /* picker adminstrator repeatedly called by togglebutton() */
     static gboolean eyedropper_run(gpointer user_data) {
         getpixcolor();
         Eyedropper* eyedropper = (Eyedropper*) user_data;
@@ -1065,6 +1137,7 @@ public:
         return gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(eyedropper->button));
     }
 
+    /* gets app out of screen color picking mode */
     static void eyedropper_end(Eyedropper* eyedropper, float x, float y) {
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(eyedropper->button), false);
         getpixcolor();
@@ -1072,6 +1145,7 @@ public:
         g_signal_emit_by_name(GTK_WIDGET(eyedropper->button), "color-change");
     }
 
+    /* x11-specific method for getting the pixel color from under the pointer */
     static void getpixcolor() {
         Display* display=XOpenDisplay(NULL);
         Window root=DefaultRootWindow(display);
@@ -1100,7 +1174,7 @@ public:
 
     }
 
-
+    /* utility for validating the existence of an icon in the theme */
     static bool icon_exists(const char* name){
         GdkDisplay* display = gdk_display_get_default();
         GtkIconTheme* theme = gtk_icon_theme_get_for_display(display);

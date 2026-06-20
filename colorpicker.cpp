@@ -1194,20 +1194,32 @@ public:
         return (bool) gtk_icon_theme_has_icon(theme, name);
     }
 };
-/**
- * testing doc: Textbox class
- * initialiser:
- * @
- */
-class Textbox{
-public:
-    GtkWidget* entry;
-    GtkWidget* frame;
-    GtkWidget* field_name;
-    const char* default_text;
-    bool valid;
 
-    
+class Textbox{
+private:
+    GtkWidget* entry; /* GtkEntry holding the editable input */
+    GtkWidget* frame; /* frame containing both the label and entry */
+    GtkWidget* field_name; /* title to be displayed alongside the entry; its label */
+    const char* default_text; /* string the entry will default to if emptied / incorrectly filled */
+    bool valid; /* holds validity status of the currrent field content */
+
+public:    
+    /** constructor of a Textbox
+     * 
+     * @param grid the GtkGrid object for the textbox to be thrown into
+     * @param validator GCallback used to validate entry content to choose from: 
+     *  valid_8bit - for 0-255 integer values /
+     *  valid_0_to_1_float - for floating point in 0..1 range
+     * @param fieldname label / title of the entry
+     * @param placeholder text for the entry to default to when empty
+     * @param buffer text different form placeholder that will only be displayed
+     * until anything else is put into the entry
+     * @param length length of the buffer, -1 if buffer is null
+     * @param grid_row row where the textbox should be put
+     * @param grid_col column where the textbox should be put
+     * @param width how many columns should the textbox span
+     * @param height how many rows should the textbox span
+    */
     static Textbox* Textbox_new (GtkGrid* grid, GCallback validator, const char* fieldname, const char* placeholder=NULL,
             const char* buffer=NULL, int length=-1, int grid_row=0, int grid_col=0, int width=1, int height=1){
         Textbox* tbox = g_new(Textbox,1);
@@ -1228,6 +1240,13 @@ public:
         return tbox;
     }
 
+    GtkWidget* get_entry(){ return entry; } /* get the editable text box */
+    GtkWidget* get_frame(){ return frame; } /* get the textbox frame */
+    GtkWidget* get_field_name(){ return field_name; } /* get the label of the entry */
+    const char* get_default_text(){ return default_text; } /* get the placeholder text displayed when entry is empty */
+    bool get_valid(){ return valid; } /* get the validity status of the input */
+
+    /* sets entry status to invalid and applies indicators in the ui */
     static void set_invalid(Textbox* tbox){
         tbox->valid = false;
         niffie("invalid input");
@@ -1235,6 +1254,7 @@ public:
         gtk_widget_add_css_class(tbox->entry, c);
     }
 
+    /* sets entry status to valid and applies indicators in the ui */
     static void set_valid(Textbox* tbox){
         tbox->valid = true;
         niffie("valid input");
@@ -1245,6 +1265,7 @@ public:
         }
     }
 
+    /* checks if entry content is a valid 8-bit integer and updates entry status accordingly */
     static void valid_8bit(GtkWidget* entryfield, gpointer data){
         Textbox* field = (Textbox*) data;
         niffie("checking...");
@@ -1275,6 +1296,7 @@ public:
 
     }
 
+    /* checks if entry content is a valid 0..1 float and updates entry status accordingly */
     static void valid_0_to_1_float(GtkWidget* entryfield, gpointer data){
         Textbox* field = (Textbox*) data;
         niffie("checking...");
@@ -1305,6 +1327,7 @@ public:
 
     }
 
+    /* signal handler for when the user tries to exit the entry field */
     static void editing_done(GtkWidget* entryfield, gpointer data){
         Textbox* field = (Textbox*)data;
         niffie("done?");
@@ -1317,6 +1340,7 @@ public:
         g_signal_emit_by_name(GTK_EDITABLE(field->entry), "editing-done");
     }
     
+    /* cleans up after editing_done() when it does its job poorly */
     static void editing_done_2(GtkWidget* entryfield, gpointer data){
         Textbox* field = (Textbox*)data;
         niffie("finally!");
@@ -1325,12 +1349,6 @@ public:
             field->valid = true;
             gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
         }
-        // GtkWidget* root = gtk_widget_get_ancestor(entryfield, G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(field->frame)));
-        // gtk_widget_grab_focus(root);
-        // gtk_widget_set_can_focus(field->entry, false);
-        // gtk_widget_set_focusable(field->field_name, true);
-        // gtk_widget_set_can_focus(field->field_name, true);
-        // gtk_widget_grab_focus(field->field_name);
     }
 };
 
@@ -1404,7 +1422,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(test_box->entry), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

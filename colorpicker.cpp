@@ -1224,7 +1224,7 @@ public:
      * @param placeholder text for the entry to default to when empty
      * @param buffer text different form placeholder that will only be displayed
      * until anything else is put into the entry
-     * @param length length of the buffer, -1 if buffer is null
+     * @param length length of the entry field (maximum input length)
      * @param prop controllable_properties id what the text box influences
      * @param grid_row row where the textbox should be put
      * @param grid_col column where the textbox should be put
@@ -1232,11 +1232,16 @@ public:
      * @param height how many rows should the textbox span
     */
     static Textbox* Textbox_new (GtkGrid* grid, GCallback validator, const char* fieldname, const char* placeholder=NULL,
-            const char* buffer=NULL, int length=-1, controllable_properties prop=NO_CONTROL, int grid_row=0, int grid_col=0, int width=1, int height=1){
+            const char* buffer=NULL, int length=3, controllable_properties prop=NO_CONTROL, int grid_row=0, int grid_col=0, int width=1, int height=1){
         Textbox* tbox = g_new(Textbox,1);
-        tbox->entry = gtk_entry_new_with_buffer(gtk_entry_buffer_new(buffer, length));
+        int len = -1;
+        if(buffer){
+            len = ((string)buffer).size();
+        }
+        tbox->entry = gtk_entry_new_with_buffer(gtk_entry_buffer_new(buffer, len));
         tbox->frame = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
         tbox->field_name = gtk_label_new(fieldname);
+        gtk_editable_set_max_width_chars(GTK_EDITABLE(tbox->entry), length);
         gtk_box_append(GTK_BOX(tbox->frame), tbox->field_name);
         gtk_box_append(GTK_BOX(tbox->frame), tbox->entry);
         gtk_grid_attach(grid, tbox->frame, grid_col, grid_row, width, height);
@@ -1441,7 +1446,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     //notebook with all of the color choosers 
     notebook=gtk_notebook_new();
-    gtk_grid_attach(GTK_GRID(grid), notebook, 0, 0, 3, 3);
+    gtk_grid_attach(GTK_GRID(grid), notebook, 0, 0, 4, 3);
 
     niffie("begin ");
     CURRENT_COLOR=g_new(GdkRGBA, 1);
@@ -1469,7 +1474,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     //color tile under the chooser
     niffie("middle ");
-    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", "color-select", 3,0);
+    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", "color-select", 4,0);
     eyedropper->resize(50,50);
     my_widget_signals[TOGGLE_PICKER_SIGNAL] = g_signal_new(
             "color-change",
@@ -1483,10 +1488,12 @@ static void activate(GtkApplication* app, gpointer user_data) {
             G_TYPE_STRING 
     );
 
-    Textbox* test_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "test", "0", "123", 3, CC_I_RED, 3, 1);
+    Textbox* red_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "r", "0", "123", 3, CC_I_RED, 3, 1);
+    Textbox* green_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "g", "0", "123", 3, CC_I_GREEN, 3, 2);
+    Textbox* blue_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "b", "0", "123", 3, CC_I_BLUE, 3, 3);
     my_widget_signals[TEXTBOX_CC_CHANGED_SIGNAL] = g_signal_new(
             "color-change",
-            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(test_box->get_entry())),
+            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(red_box->get_entry())),
             G_SIGNAL_RUN_FIRST,     
             0, /* class offset for default handler */     
             nullptr, nullptr,     
@@ -1497,15 +1504,24 @@ static void activate(GtkApplication* app, gpointer user_data) {
     );
 
     
-    ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 2, 3, 1, 1);
+    ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 0, 3, 1, 1);
     g_signal_connect_data(GTK_WIDGET(hsl_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(hsv_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    //red input box handlers
+    g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    //green input box handlers
+    g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    //blue input box handlers
+    g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

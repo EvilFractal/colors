@@ -21,11 +21,20 @@ void update(GtkWidget* widget, gpointer data);
 GtkCssProvider* css_provider;
 
 enum { 
+    TEXTBOX_CC_CHANGED_SIGNAL,
     TOGGLE_PICKER_SIGNAL,
     DRAW_ACTION_SIGNAL,
     LAST_SIGNAL
 };
 static guint my_widget_signals[LAST_SIGNAL] = { 0 };
+
+enum controllable_properties {
+    NO_CONTROL = -1,  /* for testing / any tbox that influences nothing, safe default value */
+    CC_F_RED, CC_F_GREEN, CC_F_BLUE, /* CURRENT_COLOR floating-point rgb values */
+    CC_I_RED, CC_I_GREEN, CC_I_BLUE, /* CURRENT_COLOR floating-point rgb values */
+    CC_ALPHA, /* CURENT_COLOR alpha */
+    CC_HUE, /* CURRENT_COLOR hue */
+};
 
 /* convert ColorSpaces::RGB color format to GdkRGBA */
 GdkRGBA _rgb_to_gdk_rgba(ColorSpaces::RGB* color) {
@@ -1202,6 +1211,7 @@ private:
     GtkWidget* field_name; /* title to be displayed alongside the entry; its label */
     const char* default_text; /* string the entry will default to if emptied / incorrectly filled */
     bool valid; /* holds validity status of the currrent field content */
+    controllable_properties property; /* id of outside_obj property the text box influences */
 
 public:    
     /** constructor of a Textbox
@@ -1215,13 +1225,14 @@ public:
      * @param buffer text different form placeholder that will only be displayed
      * until anything else is put into the entry
      * @param length length of the buffer, -1 if buffer is null
+     * @param prop controllable_properties id what the text box influences
      * @param grid_row row where the textbox should be put
      * @param grid_col column where the textbox should be put
      * @param width how many columns should the textbox span
      * @param height how many rows should the textbox span
     */
     static Textbox* Textbox_new (GtkGrid* grid, GCallback validator, const char* fieldname, const char* placeholder=NULL,
-            const char* buffer=NULL, int length=-1, int grid_row=0, int grid_col=0, int width=1, int height=1){
+            const char* buffer=NULL, int length=-1, controllable_properties prop=NO_CONTROL, int grid_row=0, int grid_col=0, int width=1, int height=1){
         Textbox* tbox = g_new(Textbox,1);
         tbox->entry = gtk_entry_new_with_buffer(gtk_entry_buffer_new(buffer, length));
         tbox->frame = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -1236,6 +1247,7 @@ public:
         gtk_entry_set_placeholder_text(GTK_ENTRY(tbox->entry), placeholder);
         tbox->valid = true;
         tbox->default_text = placeholder;
+        tbox->property=prop;
         niffie("got textbox");
         return tbox;
     }
@@ -1245,6 +1257,60 @@ public:
     GtkWidget* get_field_name(){ return field_name; } /* get the label of the entry */
     const char* get_default_text(){ return default_text; } /* get the placeholder text displayed when entry is empty */
     bool get_valid(){ return valid; } /* get the validity status of the input */
+    controllable_properties get_controlled_id(){ return property; } /* get the id of the property influenced by the textbox */
+
+    /* implements the update of controlled property when a valid textbox content edit happens */
+    void set_controlled_property(auto value) {
+        controllable_properties id = property;
+        switch (id) {
+        case CC_F_RED: {
+            CURRENT_COLOR->red=value;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_F_GREEN: {
+            CURRENT_COLOR->green=value;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_F_BLUE: {
+            CURRENT_COLOR->blue=value;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_I_RED: {
+            CURRENT_COLOR->red = (float)value / 255.0f;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_I_GREEN: {
+            CURRENT_COLOR->green = (float)value / 255.0f;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_I_BLUE: {
+            CURRENT_COLOR->blue = (float)value / 255.0f;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_ALPHA: {
+            CURRENT_COLOR->alpha=value;
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        case CC_HUE: {
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
+            temp.h = value;
+            rgb = Converter::hsv_to_rgb(&temp);
+            *CURRENT_COLOR = _rgb_to_gdk_rgba(&rgb);
+            g_signal_emit_by_name(entry, "color-change");
+            break;
+        }
+        default:
+            break;
+        }
+    }
 
     /* sets entry status to invalid and applies indicators in the ui */
     static void set_invalid(Textbox* tbox){
@@ -1285,6 +1351,7 @@ public:
             if(value == std::round(value)  and 0 <= value and value < 256){
                 set_valid(field);
                 niffie("current val: "+std::to_string((int)value));
+                field->set_controlled_property((int)value);
             } else{
                 set_invalid(field);
                 niffie("floating point?");
@@ -1316,6 +1383,7 @@ public:
             if(0 <= value and value <= 1){
                 set_valid(field);
                 niffie("current val: "+std::to_string(value));
+                field->set_controlled_property(value);
             } else{
                 set_invalid(field);
                 niffie("floating point?");
@@ -1336,6 +1404,7 @@ public:
             int bufflen = std::strlen(field->default_text);
             field->valid = true;
             gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
+            g_signal_emit_by_name(GTK_EDITABLE(field->entry), "changed");
         }
         g_signal_emit_by_name(GTK_EDITABLE(field->entry), "editing-done");
     }
@@ -1348,6 +1417,7 @@ public:
             int bufflen = std::strlen(field->default_text);
             field->valid = true;
             gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
+            g_signal_emit_by_name(GTK_EDITABLE(field->entry), "changed");
         }
     }
 };
@@ -1413,7 +1483,18 @@ static void activate(GtkApplication* app, gpointer user_data) {
             G_TYPE_STRING 
     );
 
-    Textbox* test_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "test", "0", "123", 3, 3, 1);
+    Textbox* test_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "test", "0", "123", 3, CC_I_RED, 3, 1);
+    my_widget_signals[TEXTBOX_CC_CHANGED_SIGNAL] = g_signal_new(
+            "color-change",
+            G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(test_box->get_entry())),
+            G_SIGNAL_RUN_FIRST,     
+            0, /* class offset for default handler */     
+            nullptr, nullptr,     
+            g_cclosure_marshal_VOID__STRING,     
+            G_TYPE_NONE, /* return type */     
+            1,    /* n_params */     
+            G_TYPE_STRING 
+    );
 
     
     ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 2, 3, 1, 1);
@@ -1422,6 +1503,8 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(test_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);

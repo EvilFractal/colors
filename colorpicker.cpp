@@ -1436,6 +1436,10 @@ static void activate(GtkApplication* app, gpointer user_data) {
     gtk_window_set_title(GTK_WINDOW(window), "color picker");
     g_signal_connect(window, "destroy", G_CALLBACK(close_window), GTK_WINDOW(window));
     grid=gtk_grid_new();
+
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 10);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 10);
+
     niffie("begin ");
 
     //load the stylesheet
@@ -1474,7 +1478,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     //color tile under the chooser
     niffie("middle ");
-    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", "color-select", 4,0);
+    Eyedropper* eyedropper = Eyedropper::Eyedropper_new(GTK_GRID(grid), "pick from screen", "color-select", 4, 0);
     eyedropper->resize(50,50);
     my_widget_signals[TOGGLE_PICKER_SIGNAL] = g_signal_new(
             "color-change",
@@ -1488,9 +1492,16 @@ static void activate(GtkApplication* app, gpointer user_data) {
             G_TYPE_STRING 
     );
 
-    Textbox* red_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "r", "0", "123", 3, CC_I_RED, 3, 1);
-    Textbox* green_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "g", "0", "123", 3, CC_I_GREEN, 3, 2);
-    Textbox* blue_box = Textbox::Textbox_new(GTK_GRID(grid), G_CALLBACK(Textbox::valid_8bit), "b", "0", "123", 3, CC_I_BLUE, 3, 3);
+    GtkWidget* text_editables_grid;
+    text_editables_grid = gtk_grid_new();
+    gtk_grid_attach(GTK_GRID(grid), text_editables_grid, 1, 3, 3, 1);
+
+    gtk_grid_set_row_spacing(GTK_GRID(text_editables_grid), 10);
+    gtk_grid_set_column_spacing(GTK_GRID(text_editables_grid), 10);
+
+    Textbox* red_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_8bit), "r", "0", "123", 3, CC_I_RED, 0, 0);
+    Textbox* green_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_8bit), "g", "0", "123", 3, CC_I_GREEN, 0, 1);
+    Textbox* blue_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_8bit), "b", "0", "123", 3, CC_I_BLUE, 0, 2);
     my_widget_signals[TEXTBOX_CC_CHANGED_SIGNAL] = g_signal_new(
             "color-change",
             G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(red_box->get_entry())),

@@ -156,6 +156,7 @@ public:
 
     /* GtkDrawingAreaDrawFunc drawing function of the tile */
     static void paint_tile(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
+        g_signal_emit_by_name(drawing_area, "color-change");
         cairo_set_source_surface(cr, surface, 0, 0);
         GdkRGBA* color=((GdkRGBA*)data);
         cairo_set_source_rgba(cr, color->red, color->green, color->blue, color->alpha);
@@ -1316,6 +1317,73 @@ public:
             break;
         }
     }
+    
+    /* updates input box when sth else changes the value of controlled property */
+    static void update_box_content(Textbox* tbox, gpointer data) {
+        controllable_properties id = tbox->property;
+        switch (id) {
+        case CC_F_RED: {
+            float value = CURRENT_COLOR->red;
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_F_GREEN: {
+            float value = CURRENT_COLOR->green;
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_F_BLUE: {
+            float value = CURRENT_COLOR->blue;
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_I_RED: {
+            int value = std::round(CURRENT_COLOR->red * 255);
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_I_GREEN: {
+            int value = std::round(CURRENT_COLOR->green * 255);
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_I_BLUE: {
+            int value = std::round(CURRENT_COLOR->green * 255);
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_ALPHA: {
+            float value = CURRENT_COLOR->alpha;
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_HUE: {
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
+            float value = temp.h;
+            string buffer = std::to_string(value);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        default:
+            break;
+        }
+    }
 
     /* sets entry status to invalid and applies indicators in the ui */
     static void set_invalid(Textbox* tbox){
@@ -1525,14 +1593,17 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), red_box, on_closure_notify, G_CONNECT_SWAPPED);
     //green input box handlers
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), green_box, on_closure_notify, G_CONNECT_SWAPPED);
     //blue input box handlers
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), blue_box, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

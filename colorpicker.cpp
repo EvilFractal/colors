@@ -17,6 +17,7 @@ static cairo_surface_t* surface=NULL;
 
 class ColorTile;
 void update(GtkWidget* widget, gpointer data);
+void update_tile(ColorTile* tile, gpointer data);
 
 GtkCssProvider* css_provider;
 
@@ -128,15 +129,16 @@ public:
         int width=50, int height=50,
         int grid_column=0, int grid_row=0, int grid_vert_span=1, int grid_hz_span=1) {
         ColorTile * tile = g_new(ColorTile, 1);
-        tile->color= CURRENT_COLOR;
+        tile->color=g_new(GdkRGBA, 1);
+        *(tile->color) =  *def_color;
         tile->frame=gtk_frame_new(NULL);
         tile->tile=gtk_drawing_area_new();
         gtk_widget_set_size_request(GTK_WIDGET(tile->tile), width, height);
         gtk_drawing_area_set_content_width(GTK_DRAWING_AREA(tile->tile), width);
         gtk_drawing_area_set_content_height(GTK_DRAWING_AREA(tile->tile), height);
-        gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(tile->tile), paint_tile, CURRENT_COLOR, (GDestroyNotify)on_destroy_notify);
+        gtk_drawing_area_set_draw_func(GTK_DRAWING_AREA(tile->tile), paint_tile, tile, (GDestroyNotify)on_destroy_notify);
         g_signal_connect_after(GTK_DRAWING_AREA(tile->tile), "resize", G_CALLBACK(resize_cb), NULL);
-        g_signal_connect_data(GTK_GRID(parent), "state-flags-changed", G_CALLBACK(update), tile->tile, on_closure_notify, G_CONNECT_SWAPPED);
+        // g_signal_connect_data(GTK_GRID(parent), "state-flags-changed", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
         gtk_frame_set_child(GTK_FRAME(tile->frame), tile->tile);
         if (GTK_IS_GRID(parent)) {
             gtk_grid_attach(GTK_GRID(parent), tile->frame, grid_column, grid_row, grid_hz_span, grid_vert_span);
@@ -154,12 +156,14 @@ public:
     GtkWidget* get_frame(){ return frame; } /* get the frame of the tile */
     GdkRGBA* get_color(){ return color; } /* get the color of the tile */
 
+    void set_color(GdkRGBA* new_color){ *color = *new_color; }
+
     /* GtkDrawingAreaDrawFunc drawing function of the tile */
     static void paint_tile(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
-        g_signal_emit_by_name(drawing_area, "color-change");
+        niffie("paint-tile");
         cairo_set_source_surface(cr, surface, 0, 0);
-        GdkRGBA* color=((GdkRGBA*)data);
-        cairo_set_source_rgba(cr, color->red, color->green, color->blue, color->alpha);
+        ColorTile* tile=((ColorTile*)data);
+        cairo_set_source_rgba(cr, tile->color->red, tile->color->green, tile->color->blue, tile->color->alpha);
         cairo_paint(cr);
     }
 
@@ -168,6 +172,17 @@ public:
 /* utility function for passing update signal to a widget */
 void update(GtkWidget* widget, gpointer data){
     gtk_widget_queue_draw(widget);
+}
+
+/* utility function for passing update signal to a tile */
+void update_tile(ColorTile* tile, gpointer data){
+    niffie("update_tile");
+    if (CURRENT_COLOR != tile->get_color()){
+        tile->set_color(CURRENT_COLOR);
+        niffie("-----------------------------------");
+        g_signal_emit_by_name(GTK_DRAWING_AREA(tile->get_tile()), "color-change");
+    }
+    gtk_widget_queue_draw(tile->get_tile());
 }
 
 /* utility function for passing update signal to a notebook */
@@ -266,6 +281,7 @@ public:
                 current_hsl->s=(y - height/10)*2 / height;
                 t=Converter::hsl_to_rgb(current_hsl);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+                g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
                 niffie("drag-start"+std::to_string(tab->startx)+' '+std::to_string(tab->starty));
             } else if (height*7/10 <= y and height*8/10 >= y) {
                 tab->drag_bar_scale=1.5;
@@ -274,6 +290,7 @@ public:
                 current_hsl->l=(x - width/20)*10 / (width*9);
                 t=Converter::hsl_to_rgb(current_hsl);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+                g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
                 niffie("drag-start"+std::to_string(tab->startx)+' '+std::to_string(tab->starty));
             }
             g_free(current_hsl);
@@ -311,12 +328,14 @@ public:
             niffie("drag-upd"+std::to_string(bound_x)+' '+std::to_string(bound_y));
             t=Converter::hsl_to_rgb(current_hsl);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+            g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
         } else if (tab->drag_bar_scale>1.0) {
             float bound_x=std::min(width*19/20.0f, std::max(width/20.0f, x));
             y=height*7.5/10;
             current_hsl->l=(bound_x - width/20)*10 / (width*9);
             t=Converter::hsl_to_rgb(current_hsl);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+            g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
         }
         g_free(current_hsl);
         niffie("trying to draw");
@@ -339,7 +358,7 @@ public:
      * from outside called by gtk_widget_queue_draw(drawing_area) */
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
-        g_signal_emit_by_name(drawing_area, "color-change");
+        // g_signal_emit_by_name(drawing_area, "color-change");
         HSLTab* tab = (HSLTab*)data;
         GdkRGBA* color=g_new(GdkRGBA, 1);
         *color=*CURRENT_COLOR;
@@ -540,6 +559,7 @@ public:
                 current_hsv->s=(y - height/10)*2 / height;
                 t=Converter::hsv_to_rgb(current_hsv);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+                g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
                 niffie("drag-start"+std::to_string(tab->startx)+' '+std::to_string(tab->starty));
             } else if (height*7/10 <= y and height*8/10 >= y) {
                 tab->drag_bar_scale=1.5;
@@ -548,6 +568,7 @@ public:
                 current_hsv->v=(x - width/20)*10 / (width*9);
                 t=Converter::hsv_to_rgb(current_hsv);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+                g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
                 niffie("drag-start"+std::to_string(tab->startx)+' '+std::to_string(tab->starty));
             }
             g_free(current_hsv);
@@ -585,12 +606,14 @@ public:
             niffie("drag-upd"+std::to_string(bound_x)+' '+std::to_string(bound_y));
             t=Converter::hsv_to_rgb(current_hsv);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+            g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
         } else if (tab->drag_bar_scale>1.0) {
             float bound_x=std::min(width*19/20.0f, std::max(width/20.0f, x));
             y=height*7.5/10;
             current_hsv->v=(bound_x - width/20)*10 / (width*9);
             t=Converter::hsv_to_rgb(current_hsv);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+            g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
         }
         g_free(current_hsv);
         niffie("trying to draw");
@@ -613,7 +636,7 @@ public:
      * from outside called by gtk_widget_queue_draw(drawing_area) */
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
-        g_signal_emit_by_name(drawing_area, "color-change");
+        // g_signal_emit_by_name(drawing_area, "color-change");
         HSVTab* tab = (HSVTab*)data;
         GdkRGBA* color=g_new(GdkRGBA, 1);
         *color=*CURRENT_COLOR;
@@ -848,6 +871,7 @@ public:
                 current_hwb->h = std::fmodf(polar.angle + 0.5f * M_PI, (2 * M_PI)) / (2 * M_PI);
                 t=Converter::hwb_to_rgb(current_hwb);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+                g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
             } else if(GeoCalc_2d::inside_triangle(&coords, tab->BlackPoint, tab->WhitePoint, tab->VividPoint)){
                 niffie("in triangle");
                 tab->drag_dot_scale=1.5;
@@ -858,6 +882,7 @@ public:
                 current_hwb->b = GeoCalc_2d::distance(&coords, tab->NoBlackLine) / tab->triangle_height;
                 t=Converter::hwb_to_rgb(current_hwb);
                 *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+                g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
             }
             g_free(current_hwb);
         }
@@ -911,12 +936,14 @@ public:
             current_hwb->h = current_hue;
             t=Converter::hwb_to_rgb(current_hwb);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+            g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
         } else if (tab->drag_bar_scale>1.0) {
             Geometry::Point2 coords = {.x = x, .y = y};
             Geometry::Polar2 polar = GeoCalc_2d::cartesian_to_polar(&coords, tab->CentrePoint);
             current_hwb->h = std::fmodf(polar.angle + 0.5f * M_PI, (2 * M_PI)) / (2 * M_PI);
             t=Converter::hwb_to_rgb(current_hwb);
             *CURRENT_COLOR=_rgb_to_gdk_rgba(&t);
+            g_signal_emit_by_name(GTK_DRAWING_AREA(tab->content), "color-change");
         }
         g_free(current_hwb);
         niffie("trying to draw");
@@ -942,7 +969,7 @@ public:
     static void draw(GtkDrawingArea* drawing_area, cairo_t* cr, int width, int height, gpointer data) {
         niffie("kk");
         HWBTab* tab = (HWBTab*)data;
-        g_signal_emit_by_name(drawing_area, "color-change");
+        // g_signal_emit_by_name(drawing_area, "color-change");
         GdkRGBA* color=g_new(GdkRGBA, 1);
         *color=*CURRENT_COLOR;
         cairo_set_source_surface(cr, surface, 0, 0);
@@ -1270,47 +1297,67 @@ public:
         controllable_properties id = property;
         switch (id) {
         case CC_F_RED: {
-            CURRENT_COLOR->red=value;
-            g_signal_emit_by_name(entry, "color-change");
+            niffie(std::to_string(value)+' '+std::to_string(CURRENT_COLOR->red));
+            if(CURRENT_COLOR->red!=value){
+                CURRENT_COLOR->red = value;
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         case CC_F_GREEN: {
-            CURRENT_COLOR->green=value;
-            g_signal_emit_by_name(entry, "color-change");
+            if(CURRENT_COLOR->green!=value){
+                CURRENT_COLOR->green = value;
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         case CC_F_BLUE: {
-            CURRENT_COLOR->blue=value;
-            g_signal_emit_by_name(entry, "color-change");
+            if(CURRENT_COLOR->blue!=value){
+                CURRENT_COLOR->blue = value;
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         case CC_I_RED: {
-            CURRENT_COLOR->red = (float)value / 255.0f;
-            g_signal_emit_by_name(entry, "color-change");
-            break;
+            float val = (float)value / 255.0f;
+            niffie(std::to_string(val)+' '+std::to_string(CURRENT_COLOR->red));
+            if(CURRENT_COLOR->red != val){
+                CURRENT_COLOR->red = val;
+                g_signal_emit_by_name(entry, "color-change");
+            }
         }
         case CC_I_GREEN: {
-            CURRENT_COLOR->green = (float)value / 255.0f;
-            g_signal_emit_by_name(entry, "color-change");
+            float val = (float)value / 255.0f;
+            if(CURRENT_COLOR->green != val){
+                CURRENT_COLOR->green = val;
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         case CC_I_BLUE: {
-            CURRENT_COLOR->blue = (float)value / 255.0f;
-            g_signal_emit_by_name(entry, "color-change");
+            float val = (float)value / 255.0f;
+            if(CURRENT_COLOR->blue != val){
+                CURRENT_COLOR->blue = val;
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         case CC_ALPHA: {
-            CURRENT_COLOR->alpha=value;
-            g_signal_emit_by_name(entry, "color-change");
+            if(CURRENT_COLOR->alpha!=value){
+                CURRENT_COLOR->alpha = value;
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         case CC_HUE: {
             ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
             ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
             temp.h = value;
-            rgb = Converter::hsv_to_rgb(&temp);
-            *CURRENT_COLOR = _rgb_to_gdk_rgba(&rgb);
-            g_signal_emit_by_name(entry, "color-change");
+            ColorSpaces::RGB newcolor = Converter::hsv_to_rgb(&temp);
+            if(rgb != newcolor){
+                *CURRENT_COLOR = _rgb_to_gdk_rgba(&newcolor);
+                g_signal_emit_by_name(entry, "color-change");
+            }
             break;
         }
         default:
@@ -1320,53 +1367,101 @@ public:
     
     /* updates input box when sth else changes the value of controlled property */
     static void update_box_content(Textbox* tbox, gpointer data) {
+        niffie("update triggered -----------------------------------------");
+        if(!(tbox->valid) or gtk_entry_get_text_length(GTK_ENTRY(tbox->entry))==0){
+            int bufflen = std::strlen(tbox->default_text);
+            tbox->valid = true;
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(tbox->default_text, bufflen));
+        }
         controllable_properties id = tbox->property;
         switch (id) {
         case CC_F_RED: {
             float value = CURRENT_COLOR->red;
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
         case CC_F_GREEN: {
             float value = CURRENT_COLOR->green;
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
         case CC_F_BLUE: {
             float value = CURRENT_COLOR->blue;
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
         case CC_I_RED: {
             int value = std::round(CURRENT_COLOR->red * 255);
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stoi(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
         case CC_I_GREEN: {
             int value = std::round(CURRENT_COLOR->green * 255);
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stoi(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
         case CC_I_BLUE: {
-            int value = std::round(CURRENT_COLOR->green * 255);
-            string buffer = std::to_string(value);
+            int value = std::round(CURRENT_COLOR->blue * 255);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stoi(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
         case CC_ALPHA: {
             float value = CURRENT_COLOR->alpha;
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1375,7 +1470,13 @@ public:
             ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
             ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
             float value = temp.h;
-            string buffer = std::to_string(value);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(value);
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1383,6 +1484,7 @@ public:
         default:
             break;
         }
+        gtk_widget_queue_draw(tbox->entry);
     }
 
     /* sets entry status to invalid and applies indicators in the ui */
@@ -1477,7 +1579,7 @@ public:
             int bufflen = std::strlen(field->default_text);
             field->valid = true;
             gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
-            g_signal_emit_by_name(GTK_EDITABLE(field->entry), "changed");
+
         }
         g_signal_emit_by_name(GTK_EDITABLE(field->entry), "editing-done");
     }
@@ -1490,7 +1592,6 @@ public:
             int bufflen = std::strlen(field->default_text);
             field->valid = true;
             gtk_entry_set_buffer(GTK_ENTRY(field->entry), gtk_entry_buffer_new(field->default_text, bufflen));
-            g_signal_emit_by_name(GTK_EDITABLE(field->entry), "changed");
         }
     }
 };
@@ -1584,24 +1685,24 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     
     ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 0, 3, 1, 1);
-    g_signal_connect_data(GTK_WIDGET(hsl_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_WIDGET(hsv_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hsl_chooser->get_content()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hsv_chooser->get_content()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     //red input box handlers
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), red_box, on_closure_notify, G_CONNECT_SWAPPED);
     //green input box handlers
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), green_box, on_closure_notify, G_CONNECT_SWAPPED);
     //blue input box handlers
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
-    g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update), tile->get_tile(), on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), blue_box, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");

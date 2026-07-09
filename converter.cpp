@@ -1,6 +1,6 @@
 #include<math.h>
 #include<string>
-#include "color_containers.h"
+#include "color_containers.cpp"
 using string = std::string;
 
 class Converter:ColorSpaces{

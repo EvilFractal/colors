@@ -12,7 +12,7 @@ class Converter:ColorSpaces{
             int res=int_part%16;
             if(res>=10){
                 res-=10;
-                str_part=(char)('a'+res-10);
+                str_part=(char)('A'+res);
             } else {
                 str_part=(char)('0'+res);
             }
@@ -20,7 +20,7 @@ class Converter:ColorSpaces{
             res=int_part%16;
             if(res>=10){
                 res-=10;
-                str_part=(char)('a'+res-10)+str_part;
+                str_part=(char)('A'+res)+str_part;
             } else {
                 str_part=(char)('0'+res)+str_part;
             }
@@ -36,10 +36,14 @@ class Converter:ColorSpaces{
             char cbig=(*hex)[i],csmall=(*hex)[i+1];
             if(cbig>='a'){
                 nums[i]=16*(cbig-'a'+10);
+            } else if(cbig>='A'){
+                nums[i]=16*(cbig-'A'+10);
             } else{ 
                 nums[i]=16*(cbig-'0');
             } if(csmall>='a'){
                 nums[i]+=csmall-'a'+10;
+            } else if(csmall>='A'){
+                nums[i]+=csmall-'A'+10;
             } else{
                 nums[i]+=csmall-'0';
             }

@@ -6,6 +6,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include<cstring>
+#include<any>
 #include "colorspaces.h"
 #include "geometry.h"
 
@@ -35,6 +36,8 @@ enum controllable_properties {
     CC_I_RED, CC_I_GREEN, CC_I_BLUE, /* CURRENT_COLOR floating-point rgb values */
     CC_ALPHA, /* CURENT_COLOR alpha */
     CC_HUE, /* CURRENT_COLOR hue */
+    CC_HEX3, /* CURRENT_COLOR r,g,b by hex */
+    CC_HEX4, /* CURRENT_COLOR r,g,b,a by hex */
 };
 
 /* convert ColorSpaces::RGB color format to GdkRGBA */
@@ -1293,10 +1296,11 @@ public:
     controllable_properties get_controlled_id(){ return property; } /* get the id of the property influenced by the textbox */
 
     /* implements the update of controlled property when a valid textbox content edit happens */
-    void set_controlled_property(auto value) {
+    void set_controlled_property(std::any value_holder) {
         controllable_properties id = property;
         switch (id) {
         case CC_F_RED: {
+            float value = std::any_cast<float>(value_holder);
             niffie(std::to_string(value)+' '+std::to_string(CURRENT_COLOR->red));
             if(CURRENT_COLOR->red!=value){
                 CURRENT_COLOR->red = value;
@@ -1305,6 +1309,7 @@ public:
             break;
         }
         case CC_F_GREEN: {
+            float value = std::any_cast<float>(value_holder);
             if(CURRENT_COLOR->green!=value){
                 CURRENT_COLOR->green = value;
                 g_signal_emit_by_name(entry, "color-change");
@@ -1312,6 +1317,7 @@ public:
             break;
         }
         case CC_F_BLUE: {
+            float value = std::any_cast<float>(value_holder);
             if(CURRENT_COLOR->blue!=value){
                 CURRENT_COLOR->blue = value;
                 g_signal_emit_by_name(entry, "color-change");
@@ -1319,6 +1325,7 @@ public:
             break;
         }
         case CC_I_RED: {
+            int value = std::any_cast<int>(value_holder);
             float val = (float)value / 255.0f;
             niffie(std::to_string(val)+' '+std::to_string(CURRENT_COLOR->red));
             if(CURRENT_COLOR->red != val){
@@ -1327,6 +1334,7 @@ public:
             }
         }
         case CC_I_GREEN: {
+            int value = std::any_cast<int>(value_holder);
             float val = (float)value / 255.0f;
             if(CURRENT_COLOR->green != val){
                 CURRENT_COLOR->green = val;
@@ -1335,6 +1343,7 @@ public:
             break;
         }
         case CC_I_BLUE: {
+            int value = std::any_cast<int>(value_holder);
             float val = (float)value / 255.0f;
             if(CURRENT_COLOR->blue != val){
                 CURRENT_COLOR->blue = val;
@@ -1343,13 +1352,30 @@ public:
             break;
         }
         case CC_ALPHA: {
+            float value = std::any_cast<float>(value_holder);
             if(CURRENT_COLOR->alpha!=value){
                 CURRENT_COLOR->alpha = value;
                 g_signal_emit_by_name(entry, "color-change");
             }
             break;
         }
+        case CC_HEX3: {
+            int value = std::any_cast<int>(value_holder);
+            int current_color_hex = std::round(CURRENT_COLOR->red * 255);
+            current_color_hex = 256 * current_color_hex + std::round(CURRENT_COLOR->green * 255);
+            current_color_hex = 256 * current_color_hex + std::round(CURRENT_COLOR->blue * 255);
+            if(current_color_hex!=value){
+                CURRENT_COLOR->blue = (float)(value%256) /255;
+                value/=256;
+                CURRENT_COLOR->green = (float)(value%256) /255;
+                value/=256;
+                CURRENT_COLOR->red = (float)value /255;
+                g_signal_emit_by_name(entry, "color-change");
+            }
+            break;
+        }
         case CC_HUE: {
+            float value = std::any_cast<float>(value_holder);
             ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
             ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
             temp.h = value;
@@ -1466,6 +1492,26 @@ public:
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
         }
+        case CC_HEX3: {
+            int value = std::round(CURRENT_COLOR->red * 255);
+            value = 256 * value + std::round(CURRENT_COLOR->green * 255);
+            value = 256 * value + std::round(CURRENT_COLOR->blue * 255);
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(value));
+            if(value == stoi(buffer, 0, 16)){
+                niffie("no change");
+                break;
+            }
+            ColorSpaces::RGB8 col = {.b=(value%256)};
+            value/=256;
+            col.g = value%256;
+            value/=256;
+            col.r = value;
+            buffer = Converter::hex(&col).substr(1,6);
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
         case CC_HUE: {
             ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
             ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
@@ -1570,6 +1616,40 @@ public:
 
     }
 
+    /* checks if entry content is a valid 24-bit hexadecimal and updates entry status accordingly */
+    static void valid_24bit_hexadecimal(GtkWidget* entryfield, gpointer data){
+        Textbox* field = (Textbox*) data;
+        niffie("checking...");
+        string text = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(entryfield)));
+        if(gtk_entry_get_text_length(GTK_ENTRY(field->entry))==0){
+            set_valid(field);
+            return;
+        } else if(gtk_entry_get_text_length(GTK_ENTRY(field->entry))!=6){
+            set_invalid(field);
+            return;
+        }
+        for (int i=0;i<text.size();i++){
+            char c = text[i];
+            if ((c<'0' or c>'9') and (c<'A' or c>'Z')){
+                if(c>='a' and c<='z'){
+                    text[i]=c-32;
+                } else{
+                    set_invalid(field);
+                    return;
+                }
+            }
+        }
+        try {
+            int value = std::stoi(text, 0, 16);
+            set_valid(field);
+            niffie("current val: "+std::to_string(value));
+            field->set_controlled_property(value);
+        }
+        catch (const std::exception& e) {
+            set_invalid(field);
+        }
+    }
+
     /* signal handler for when the user tries to exit the entry field */
     static void editing_done(GtkWidget* entryfield, gpointer data){
         Textbox* field = (Textbox*)data;
@@ -1671,6 +1751,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     Textbox* red_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_8bit), "r", "0", "123", 3, CC_I_RED, 0, 0);
     Textbox* green_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_8bit), "g", "0", "123", 3, CC_I_GREEN, 0, 1);
     Textbox* blue_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_8bit), "b", "0", "123", 3, CC_I_BLUE, 0, 2);
+    Textbox* hex_box = Textbox::Textbox_new(GTK_GRID(text_editables_grid), G_CALLBACK(Textbox::valid_24bit_hexadecimal), "#", "000000", "123abc", 6, CC_HEX3, 1, 0, 2);
     my_widget_signals[TEXTBOX_CC_CHANGED_SIGNAL] = g_signal_new(
             "color-change",
             G_TYPE_FROM_CLASS(GTK_WIDGET_GET_CLASS(red_box->get_entry())),
@@ -1705,6 +1786,12 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), blue_box, on_closure_notify, G_CONNECT_SWAPPED);
+    //color hex input box handlers
+    g_signal_connect_data(GTK_EDITABLE(hex_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(hex_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_EDITABLE(hex_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
+    g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), hex_box, on_closure_notify, G_CONNECT_SWAPPED);
+
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

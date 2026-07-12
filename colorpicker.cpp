@@ -1630,8 +1630,8 @@ public:
         }
         for (int i=0;i<text.size();i++){
             char c = text[i];
-            if ((c<'0' or c>'9') and (c<'A' or c>'Z')){
-                if(c>='a' and c<='z'){
+            if ((c<'0' or c>'9') and (c<'A' or c>'F')){
+                if(c>='a' and c<='f'){
                     text[i]=c-32;
                 } else{
                     set_invalid(field);

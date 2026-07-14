@@ -1,5 +1,7 @@
+/* outline covers the focus indicator, border does not */
 .invalid {
-    border-color: #ff0000;
-    border-width: 5px;
-    background: #aa00bb;
+    outline: 2px solid;
+    transition: all 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    outline-color: #ff0000; /*border color*/
+    outline-offset: -1px;
 }

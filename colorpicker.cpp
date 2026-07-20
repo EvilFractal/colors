@@ -7,6 +7,7 @@
 #include <X11/Xutil.h>
 #include<cstring>
 #include<any>
+#include<vector>
 #include "colorspaces.h"
 #include "geometry.h"
 
@@ -1263,7 +1264,8 @@ public:
      * @param height how many rows should the textbox span
     */
     static Textbox* Textbox_new (GtkGrid* grid, GCallback validator, const char* fieldname, const char* placeholder=NULL,
-            const char* buffer=NULL, int length=3, controllable_properties prop=NO_CONTROL, int grid_row=0, int grid_col=0, int width=1, int height=1){
+            const char* buffer=NULL, int length=3, controllable_properties prop=NO_CONTROL, 
+            int grid_row=0, int grid_col=0, int width=1, int height=1){
         Textbox* tbox = g_new(Textbox,1);
         int len = -1;
         if(buffer){
@@ -1676,6 +1678,196 @@ public:
     }
 };
 
+class StatusArea {
+protected:
+    int length;
+public:
+    int get_length(){ return length; }
+    void set_length(int len){ length = len; }
+};
+
+class Item: public StatusArea{
+private:
+    int pos=0;
+    bool shrinkable = true;
+    controllable_properties prop;
+    std::string contents = "aaaaaaaaaaaaaaa";
+public:
+    Item(){}
+    ~Item(){}
+    Item(const Item& that){
+        pos = that.pos;
+        shrinkable = that.shrinkable;
+        prop = that.prop;
+        contents = that.contents;
+        set_length(((StatusArea)that).get_length());
+    }
+    Item& operator=(const Item& that){
+        if (this != &that) {
+            pos=that.pos;
+            shrinkable=that.shrinkable;
+            prop=that.prop;
+            contents=that.contents;
+            set_length(((StatusArea)that).get_length());
+        }
+        return *this;
+    }
+    // delete this;}
+    Item(int position, int char_count, controllable_properties controller, std::string placeholder,
+            bool allow_shrink=true) {
+        niffie("iteming...");
+        pos = position;
+        length = char_count;
+        niffie("iteming...2");
+        shrinkable = allow_shrink;
+        niffie("iteming...3");
+        contents = placeholder;
+        niffie("iteming...4");
+        prop = controller;
+        niffie("iteming finish...");
+    }
+
+    int get_pos(){ return pos; }
+    bool is_shrinkable(){ return shrinkable; }
+    controllable_properties get_controlled_property(){ return prop; }
+    std::string get_content(){ return contents; }
+
+    void set_content(std::string new_content){
+        contents = new_content;
+    }
+
+    std::string generate_buffer(){
+        std::string res="tst";
+        for(int i=3;i<get_length();i++){
+            res+='*';
+        }
+        return res;
+    }
+};
+
+class ItemPack: public StatusArea{
+// public: class Item;
+private: 
+    int pos=0;
+    std::string container;
+    bool shrinkable = false;
+    std::vector<Item> children = std::vector<Item>(0);
+public:
+    ItemPack(){}
+    ItemPack(const ItemPack& pack){ 
+        pos = pack.pos;
+        shrinkable = pack.shrinkable;
+        children = pack.children;
+        container = pack.container;
+        set_length(((StatusArea)pack).get_length());
+    }
+    ItemPack& operator=(const ItemPack& pack){
+        if (this != &pack) {
+            pos=pack.pos;
+            shrinkable=pack.shrinkable;
+            children=pack.children;
+            container = pack.container;
+            set_length(((StatusArea)pack).get_length());
+        }
+        return (*this);
+    }
+    ~ItemPack(){}
+    ItemPack(int start_pos, int total_length, std::string placeholder, bool allow_shrink = false){
+        niffie("ipack");
+        pos = start_pos;
+        length = total_length;
+        // children.reserve(5);
+        children = std::vector<Item>(0);
+        // children->resize(0);
+        container = placeholder;
+        shrinkable = allow_shrink;
+    }
+    int get_pos(){ return pos; }
+    bool is_shrinkable(){ return shrinkable; }
+    std::vector<Item> get_children(){ return children; }
+    std::string get_container(){ return container; }
+    Item get_nth_child(int n){ return children[n]; }
+
+    void set_nth_child(int n, Item child){
+        niffie("start setting nth child");
+        if(n>=children.size() or n==-1){
+            n = children.size();
+            niffie("work...");
+            children.push_back(child);
+            niffie("work...");
+        }
+        else{
+            children[n] = child;
+        }
+        niffie("end setting nth child");
+    }
+
+    std::string generate_buffer(){
+        std::string res="";
+        std::string partial="";
+        for(int i=0;i<children.size();i++){
+            partial = get_nth_child(i).generate_buffer();
+            res+=partial;
+        }
+        for(int i = res.size(); i<get_length(); i++){
+            res+='-';
+        }
+        return res;
+    }
+};
+
+
+class StatusBar: public StatusArea{
+private:
+    GtkWidget* bar;
+    GtkWidget* frame;
+    std::vector<ItemPack> contents = std::vector<ItemPack>(0);
+public:
+    static StatusBar* StatusBar_new(int len){
+        StatusBar* sbar = new StatusBar;
+        sbar->frame = gtk_frame_new(NULL);
+        sbar->bar = gtk_label_new("test1    ^o^");
+        gtk_frame_set_child(GTK_FRAME(sbar->frame), sbar->bar);
+        sbar->length = len;
+        niffie("uhhh");
+        // sbar->contents.reserve(5);
+        sbar->contents = std::vector<ItemPack>(0);
+        niffie("nope");
+        gtk_widget_add_css_class(sbar->bar, "mono");
+        return sbar;
+    }
+
+    GtkWidget* get_bar(){ return bar; }
+    GtkWidget* get_frame(){ return frame; }
+    std::vector<ItemPack> get_contents(){ return contents; }
+    ItemPack get_nth_child(int n){ return contents[n]; }
+
+    void set_nth_child(int n, ItemPack child){
+        if(n>=contents.size() or n==-1){
+            n = contents.size();
+            contents.resize(n+1);
+            contents[n] = child;
+        }
+        else{
+            contents[n] = child;
+        }
+    }
+
+    void update(){
+        string res="";
+        string partial = "";
+        for(int i=0; i<contents.size(); i++){
+            partial = get_nth_child(i).generate_buffer();
+            res+=partial;
+        }
+        for(int i=res.size(); i<get_length(); i++){
+            res+="_";
+        }
+        gtk_label_set_text(GTK_LABEL(bar), res.c_str());
+    }
+};
+
+
 static void activate(GtkApplication* app, gpointer user_data) {
     GtkWidget* window;
     GtkWidget* grid;
@@ -1764,6 +1956,20 @@ static void activate(GtkApplication* app, gpointer user_data) {
             G_TYPE_STRING 
     );
 
+    StatusBar* sbar = new StatusBar;
+    sbar = StatusBar::StatusBar_new(30);
+    ItemPack rgb_status = ItemPack(0, 12, "rgb (%, %, %)", false);
+    rgb_status.set_nth_child(0, Item(0,3,CC_I_RED, "1"));
+    rgb_status.set_nth_child(10, Item(1,3,CC_I_GREEN, "11"));
+    rgb_status.set_nth_child(-1, Item(2,3,CC_I_BLUE, "123"));
+    // ItemPack hsv_status = ItemPack(0, 12, "hsv (%, %, %)", false);
+    sbar->set_nth_child(-1, rgb_status);
+    niffie("packed first one!");
+    sbar->set_nth_child(-1, rgb_status);
+    sbar->update();
+    gtk_grid_attach(GTK_GRID(grid), sbar->get_frame(), 0, 7, 6, 1);
+    niffie("status bar ready...");
+
     
     ColorTile* tile = ColorTile::ColorTilenew(grid, CURRENT_COLOR, 50, 50, 0, 3, 1, 1);
     g_signal_connect_data(GTK_WIDGET(hsl_chooser->get_content()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
@@ -1771,6 +1977,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_WIDGET(hwb_triangle_chooser->get_content()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_WIDGET(eyedropper->get_button()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
+    niffie("signals...");
     //red input box handlers
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(red_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
@@ -1781,6 +1988,7 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(green_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), green_box, on_closure_notify, G_CONNECT_SWAPPED);
+        niffie("signals...");
     //blue input box handlers
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_nb), notebook, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_EDITABLE(blue_box->get_entry()), "color-change", G_CALLBACK(update_tile), tile, on_closure_notify, G_CONNECT_SWAPPED);

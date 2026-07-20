@@ -5,3 +5,7 @@
     outline-color: #ff0000; /*border color*/
     outline-offset: -1px;
 }
+
+.mono {
+    font-family: monospace;
+}

@@ -1695,6 +1695,7 @@ private:
 public:
     Item(){}
     ~Item(){}
+
     Item(const Item& that){
         pos = that.pos;
         shrinkable = that.shrinkable;
@@ -1702,6 +1703,7 @@ public:
         contents = that.contents;
         set_length(((StatusArea)that).get_length());
     }
+
     Item& operator=(const Item& that){
         if (this != &that) {
             pos=that.pos;
@@ -1712,7 +1714,7 @@ public:
         }
         return *this;
     }
-    // delete this;}
+
     Item(int position, int char_count, controllable_properties controller, std::string placeholder,
             bool allow_shrink=true) {
         niffie("iteming...");
@@ -1737,16 +1739,114 @@ public:
     }
 
     std::string generate_buffer(){
-        std::string res="tst";
-        for(int i=3;i<get_length();i++){
-            res+='*';
+        std::string res="";
+        switch (prop) 
+        {
+        case CC_F_RED: {
+            float value=CURRENT_COLOR->red;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
         }
+        case CC_F_GREEN: {
+            float value=CURRENT_COLOR->green;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        case CC_F_BLUE: {
+            float value=CURRENT_COLOR->blue;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        case CC_I_RED: {
+            int value=std::round(CURRENT_COLOR->red * 255);
+            if (value == stoi(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        case CC_I_GREEN: {
+            int value=std::round(CURRENT_COLOR->green * 255);
+            if (value == stoi(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        case CC_I_BLUE: {
+            int value=std::round(CURRENT_COLOR->blue * 255);
+            if (value == stoi(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        case CC_ALPHA: {
+            float value=CURRENT_COLOR->alpha;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        case CC_HEX3: {
+            int value=std::round(CURRENT_COLOR->red * 255);
+            value=256 * value + std::round(CURRENT_COLOR->green * 255);
+            value=256 * value + std::round(CURRENT_COLOR->blue * 255);
+            if (value == stoi(contents, 0, 16)) {
+                niffie("no change");
+                break;
+            }
+            ColorSpaces::RGB8 col={.b=(value%256)};
+            value/=256;
+            col.g=value%256;
+            value/=256;
+            col.r=value;
+            res=Converter::hex(&col).substr(1, 6);
+            break;
+        }
+        case CC_HUE: {
+            ColorSpaces::RGB rgb=_gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp=Converter::rgb_to_hsv(&rgb);
+            float value=temp.h;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(value);
+            break;
+        }
+        default:
+            break;
+        }
+
+        if(!shrinkable and res.size()<length){
+            for(int i=res.size(); i<length;i++){
+                res+=' ';
+            }
+        }
+        this->set_content(res);
         return res;
     }
 };
 
 class ItemPack: public StatusArea{
-// public: class Item;
 private: 
     int pos=0;
     std::string container;
@@ -1754,6 +1854,8 @@ private:
     std::vector<Item> children = std::vector<Item>(0);
 public:
     ItemPack(){}
+    ~ItemPack(){}
+
     ItemPack(const ItemPack& pack){ 
         pos = pack.pos;
         shrinkable = pack.shrinkable;
@@ -1761,6 +1863,7 @@ public:
         container = pack.container;
         set_length(((StatusArea)pack).get_length());
     }
+
     ItemPack& operator=(const ItemPack& pack){
         if (this != &pack) {
             pos=pack.pos;
@@ -1771,17 +1874,16 @@ public:
         }
         return (*this);
     }
-    ~ItemPack(){}
+
     ItemPack(int start_pos, int total_length, std::string placeholder, bool allow_shrink = false){
         niffie("ipack");
         pos = start_pos;
         length = total_length;
-        // children.reserve(5);
         children = std::vector<Item>(0);
-        // children->resize(0);
         container = placeholder;
         shrinkable = allow_shrink;
     }
+    
     int get_pos(){ return pos; }
     bool is_shrinkable(){ return shrinkable; }
     std::vector<Item> get_children(){ return children; }
@@ -1805,10 +1907,13 @@ public:
     std::string generate_buffer(){
         std::string res="";
         std::string partial="";
+        int prev = 0;
         for(int i=0;i<children.size();i++){
-            partial = get_nth_child(i).generate_buffer();
+            partial = container.substr(prev, get_nth_child(i).get_pos() - prev) + get_nth_child(i).generate_buffer();
             res+=partial;
+            prev = get_nth_child(i).get_pos();
         }
+        res += container.substr(prev, container.size() - prev);
         for(int i = res.size(); i<get_length(); i++){
             res+='-';
         }
@@ -1834,6 +1939,7 @@ public:
         sbar->contents = std::vector<ItemPack>(0);
         niffie("nope");
         gtk_widget_add_css_class(sbar->bar, "mono");
+        gtk_label_set_selectable(GTK_LABEL(sbar->bar), true);
         return sbar;
     }
 
@@ -1853,17 +1959,17 @@ public:
         }
     }
 
-    void update(){
+    static void update(StatusBar* sbar, gpointer* data = NULL){
         string res="";
         string partial = "";
-        for(int i=0; i<contents.size(); i++){
-            partial = get_nth_child(i).generate_buffer();
+        for(int i=0; i < sbar->contents.size(); i++){
+            partial = sbar->get_nth_child(i).generate_buffer();
             res+=partial;
         }
-        for(int i=res.size(); i<get_length(); i++){
+        for(int i=res.size(); i< sbar->get_length(); i++){
             res+="_";
         }
-        gtk_label_set_text(GTK_LABEL(bar), res.c_str());
+        gtk_label_set_text(GTK_LABEL(sbar->bar), res.c_str());
     }
 };
 
@@ -1958,15 +2064,15 @@ static void activate(GtkApplication* app, gpointer user_data) {
 
     StatusBar* sbar = new StatusBar;
     sbar = StatusBar::StatusBar_new(30);
-    ItemPack rgb_status = ItemPack(0, 12, "rgb (%, %, %)", false);
-    rgb_status.set_nth_child(0, Item(0,3,CC_I_RED, "1"));
-    rgb_status.set_nth_child(10, Item(1,3,CC_I_GREEN, "11"));
-    rgb_status.set_nth_child(-1, Item(2,3,CC_I_BLUE, "123"));
+    ItemPack rgb_status = ItemPack(0, 20, "rgb (, , )   ", false);
+    rgb_status.set_nth_child(0, Item(5,3,CC_I_RED, "1"));
+    rgb_status.set_nth_child(10, Item(7,3,CC_I_GREEN, "11"));
+    rgb_status.set_nth_child(-1, Item(9,3,CC_I_BLUE, "123"));
     // ItemPack hsv_status = ItemPack(0, 12, "hsv (%, %, %)", false);
     sbar->set_nth_child(-1, rgb_status);
     niffie("packed first one!");
     sbar->set_nth_child(-1, rgb_status);
-    sbar->update();
+    StatusBar::update(sbar);
     gtk_grid_attach(GTK_GRID(grid), sbar->get_frame(), 0, 7, 6, 1);
     niffie("status bar ready...");
 
@@ -2000,6 +2106,8 @@ static void activate(GtkApplication* app, gpointer user_data) {
     g_signal_connect_data(GTK_EDITABLE(hex_box->get_entry()), "editing-done", G_CALLBACK(unfocus), window, on_closure_notify, G_CONNECT_SWAPPED);
     g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(Textbox::update_box_content), hex_box, on_closure_notify, G_CONNECT_SWAPPED);
 
+    //status bar signal handlers
+    g_signal_connect_data(GTK_DRAWING_AREA(tile->get_tile()), "color-change", G_CALLBACK(StatusBar::update), sbar, on_closure_notify, G_CONNECT_SWAPPED);
     niffie("a ");
     gtk_window_set_child(GTK_WINDOW(window), grid);
     niffie("a ");

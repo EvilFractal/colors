@@ -8,6 +8,7 @@
 #include<cstring>
 #include<any>
 #include<vector>
+#include<iomanip>
 #include "colorspaces.h"
 #include "geometry.h"
 
@@ -37,6 +38,8 @@ enum controllable_properties {
     CC_I_RED, CC_I_GREEN, CC_I_BLUE, /* CURRENT_COLOR floating-point rgb values */
     CC_ALPHA, /* CURENT_COLOR alpha */
     CC_HUE, /* CURRENT_COLOR hue */
+    CC_HSL_SATURATION, CC_LIGHTNESS, /* CURRENT_COLOR hsl saturation, lightness */
+    CC_HSV_SATURATION, CC_VALUE, /* CURRENT_COLOR hsv saturation, value */
     CC_HEX3, /* CURRENT_COLOR r,g,b by hex */
     CC_HEX4, /* CURRENT_COLOR r,g,b,a by hex */
 };
@@ -1303,7 +1306,7 @@ public:
         switch (id) {
         case CC_F_RED: {
             float value = std::any_cast<float>(value_holder);
-            niffie(std::to_string(value)+' '+std::to_string(CURRENT_COLOR->red));
+            niffie(std::to_string(Math::round(value,0.001))+' '+std::to_string(CURRENT_COLOR->red));
             if(CURRENT_COLOR->red!=value){
                 CURRENT_COLOR->red = value;
                 g_signal_emit_by_name(entry, "color-change");
@@ -1388,6 +1391,54 @@ public:
             }
             break;
         }
+        case CC_HSL_SATURATION: {
+            float value = std::any_cast<float>(value_holder);
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSL temp = Converter::rgb_to_hsl(&rgb);
+            temp.s = value;
+            ColorSpaces::RGB newcolor = Converter::hsl_to_rgb(&temp);
+            if(rgb != newcolor){
+                *CURRENT_COLOR = _rgb_to_gdk_rgba(&newcolor);
+                g_signal_emit_by_name(entry, "color-change");
+            }
+            break;
+        }
+        case CC_LIGHTNESS: {
+            float value = std::any_cast<float>(value_holder);
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSL temp = Converter::rgb_to_hsl(&rgb);
+            temp.l = value;
+            ColorSpaces::RGB newcolor = Converter::hsl_to_rgb(&temp);
+            if(rgb != newcolor){
+                *CURRENT_COLOR = _rgb_to_gdk_rgba(&newcolor);
+                g_signal_emit_by_name(entry, "color-change");
+            }
+            break;
+        }
+        case CC_HSV_SATURATION: {
+            float value = std::any_cast<float>(value_holder);
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
+            temp.s = value;
+            ColorSpaces::RGB newcolor = Converter::hsv_to_rgb(&temp);
+            if(rgb != newcolor){
+                *CURRENT_COLOR = _rgb_to_gdk_rgba(&newcolor);
+                g_signal_emit_by_name(entry, "color-change");
+            }
+            break;
+        }
+        case CC_VALUE: {
+            float value = std::any_cast<float>(value_holder);
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
+            temp.v = value;
+            ColorSpaces::RGB newcolor = Converter::hsv_to_rgb(&temp);
+            if(rgb != newcolor){
+                *CURRENT_COLOR = _rgb_to_gdk_rgba(&newcolor);
+                g_signal_emit_by_name(entry, "color-change");
+            }
+            break;
+        }
         default:
             break;
         }
@@ -1406,12 +1457,12 @@ public:
         case CC_F_RED: {
             float value = CURRENT_COLOR->red;
             string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
-            niffie(buffer+' '+std::to_string(value));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
             if(value == stof(buffer)){
                 niffie("no change");
                 break;
             }
-            buffer = std::to_string(value);
+            buffer = std::to_string(Math::round(value,0.001));
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1419,12 +1470,12 @@ public:
         case CC_F_GREEN: {
             float value = CURRENT_COLOR->green;
             string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
-            niffie(buffer+' '+std::to_string(value));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
             if(value == stof(buffer)){
                 niffie("no change");
                 break;
             }
-            buffer = std::to_string(value);
+            buffer = std::to_string(Math::round(value,0.001));
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1432,12 +1483,12 @@ public:
         case CC_F_BLUE: {
             float value = CURRENT_COLOR->blue;
             string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
-            niffie(buffer+' '+std::to_string(value));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
             if(value == stof(buffer)){
                 niffie("no change");
                 break;
             }
-            buffer = std::to_string(value);
+            buffer = std::to_string(Math::round(value,0.001));
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1484,12 +1535,12 @@ public:
         case CC_ALPHA: {
             float value = CURRENT_COLOR->alpha;
             string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
-            niffie(buffer+' '+std::to_string(value));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
             if(value == stof(buffer)){
                 niffie("no change");
                 break;
             }
-            buffer = std::to_string(value);
+            buffer = std::to_string(Math::round(value,0.001));
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1519,12 +1570,72 @@ public:
             ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
             float value = temp.h;
             string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
-            niffie(buffer+' '+std::to_string(value));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
             if(value == stof(buffer)){
                 niffie("no change");
                 break;
             }
-            buffer = std::to_string(value);
+            buffer = std::to_string(Math::round(value,0.001));
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_HSL_SATURATION: {
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSL temp = Converter::rgb_to_hsl(&rgb);
+            float value = temp.s;
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(Math::round(value,0.001));
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_LIGHTNESS: {
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSL temp = Converter::rgb_to_hsl(&rgb);
+            float value = temp.l;
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(Math::round(value,0.001));
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_HSV_SATURATION: {
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
+            float value = temp.s;
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(Math::round(value,0.001));
+            int buffer_size = buffer.size();
+            gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
+            break;
+        }
+        case CC_VALUE: {
+            ColorSpaces::RGB rgb = _gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp = Converter::rgb_to_hsv(&rgb);
+            float value = temp.v;
+            string buffer = gtk_entry_buffer_get_text(gtk_entry_get_buffer(GTK_ENTRY(tbox->entry)));
+            niffie(buffer+' '+std::to_string(Math::round(value,0.001)));
+            if(value == stof(buffer)){
+                niffie("no change");
+                break;
+            }
+            buffer = std::to_string(Math::round(value,0.001));
             int buffer_size = buffer.size();
             gtk_entry_set_buffer(GTK_ENTRY(tbox->entry), gtk_entry_buffer_new(buffer.c_str(), buffer_size));
             break;
@@ -1605,7 +1716,7 @@ public:
             float value = std::stof(text);
             if(0 <= value and value <= 1){
                 set_valid(field);
-                niffie("current val: "+std::to_string(value));
+                niffie("current val: "+std::to_string(Math::round(value,0.001)));
                 field->set_controlled_property(value);
             } else{
                 set_invalid(field);
@@ -1748,7 +1859,7 @@ public:
                 niffie("no change");
                 break;
             }
-            res=std::to_string(value);
+            res=std::to_string(Math::round(value,0.001));
             break;
         }
         case CC_F_GREEN: {
@@ -1757,7 +1868,7 @@ public:
                 niffie("no change");
                 break;
             }
-            res=std::to_string(value);
+            res=std::to_string(Math::round(value,0.001));
             break;
         }
         case CC_F_BLUE: {
@@ -1766,7 +1877,7 @@ public:
                 niffie("no change");
                 break;
             }
-            res=std::to_string(value);
+            res=std::to_string(Math::round(value,0.001));
             break;
         }
         case CC_I_RED: {
@@ -1802,7 +1913,7 @@ public:
                 niffie("no change");
                 break;
             }
-            res=std::to_string(value);
+            res=std::to_string(Math::round(value,0.001));
             break;
         }
         case CC_HEX3: {
@@ -1829,7 +1940,51 @@ public:
                 niffie("no change");
                 break;
             }
-            res=std::to_string(value);
+            res=std::to_string(Math::round(value,0.001));
+            break;
+        }
+        case CC_HSL_SATURATION: {
+            ColorSpaces::RGB rgb=_gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSL temp=Converter::rgb_to_hsl(&rgb);
+            float value=temp.s;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(Math::round(value,0.001));
+            break;
+        }
+        case CC_LIGHTNESS: {
+            ColorSpaces::RGB rgb=_gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSL temp=Converter::rgb_to_hsl(&rgb);
+            float value=temp.l;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(Math::round(value,0.001));
+            break;
+        }
+        case CC_HSV_SATURATION: {
+            ColorSpaces::RGB rgb=_gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp=Converter::rgb_to_hsv(&rgb);
+            float value=temp.s;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(Math::round(value,0.001));
+            break;
+        }
+        case CC_VALUE: {
+            ColorSpaces::RGB rgb=_gdk_rgba_to_rgb(CURRENT_COLOR);
+            ColorSpaces::HSV temp=Converter::rgb_to_hsv(&rgb);
+            float value=temp.v;
+            if (value == stof(contents)) {
+                niffie("no change");
+                break;
+            }
+            res=std::to_string(Math::round(value,0.001));
             break;
         }
         default:
@@ -1840,6 +1995,8 @@ public:
             for(int i=res.size(); i<length;i++){
                 res+=' ';
             }
+        } else if(res.size() > length){
+            res = res.substr(0,length);
         }
         this->set_content(res);
         return res;
@@ -1915,7 +2072,7 @@ public:
         }
         res += container.substr(prev, container.size() - prev);
         for(int i = res.size(); i<get_length(); i++){
-            res+='-';
+            res+=' ';
         }
         return res;
     }
@@ -2063,15 +2220,21 @@ static void activate(GtkApplication* app, gpointer user_data) {
     );
 
     StatusBar* sbar = new StatusBar;
-    sbar = StatusBar::StatusBar_new(30);
-    ItemPack rgb_status = ItemPack(0, 20, "rgb (, , )   ", false);
+    sbar = StatusBar::StatusBar_new(10);
+    ItemPack rgb_status = ItemPack(0, 21, "rgb (, , ) ", false);
     rgb_status.set_nth_child(0, Item(5,3,CC_I_RED, "1"));
     rgb_status.set_nth_child(10, Item(7,3,CC_I_GREEN, "11"));
     rgb_status.set_nth_child(-1, Item(9,3,CC_I_BLUE, "123"));
-    // ItemPack hsv_status = ItemPack(0, 12, "hsv (%, %, %)", false);
+    ItemPack hsv_status = ItemPack(0, 25, "hsv (, , )", false);
+    hsv_status.set_nth_child(0, Item(5,5,CC_HUE, "1"));
+    hsv_status.set_nth_child(10, Item(7,5,CC_HSV_SATURATION, "11"));
+    hsv_status.set_nth_child(-1, Item(9,5,CC_VALUE, "123"));
+    ItemPack hex_status = ItemPack(0, 9, "# ", false);
+    hex_status.set_nth_child(-1, Item(1, 6, CC_HEX3, "000000", false));
     sbar->set_nth_child(-1, rgb_status);
+    sbar->set_nth_child(-1, hex_status);
     niffie("packed first one!");
-    sbar->set_nth_child(-1, rgb_status);
+    sbar->set_nth_child(-1, hsv_status);
     StatusBar::update(sbar);
     gtk_grid_attach(GTK_GRID(grid), sbar->get_frame(), 0, 7, 6, 1);
     niffie("status bar ready...");

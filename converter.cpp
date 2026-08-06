@@ -1,3 +1,6 @@
+#ifndef COLOR_SPACES_CONVERTER_MODULE
+#define COLOR_SPACES_CONVERTER_MODULE
+
 #include<math.h>
 #include<string>
 #include "color_containers.cpp"
@@ -201,3 +204,4 @@ class Converter:ColorSpaces{
     }
 };
 
+#endif

@@ -1,3 +1,6 @@
+#ifndef GEOMETRY_CONTAINERS_TWO_DIMENSIONS_HEADER
+#define GEOMETRY_CONTAINERS_TWO_DIMENSIONS_HEADER
+
 class Geometry{
 public:
     struct Point2{
@@ -16,3 +19,5 @@ public:
         float C;
     };
 };
+
+#endif

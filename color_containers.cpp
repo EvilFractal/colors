@@ -1,3 +1,6 @@
+#ifndef COLOR_SPACES_CONTAINERS_MODULE
+#define COLOR_SPACES_CONTAINERS_MODULE
+
 #include "color_containers.h"
 
 
@@ -7,3 +10,5 @@ bool operator==(const ColorSpaces::RGB& lhs, const ColorSpaces::RGB& rhs) {
 bool operator!=(const ColorSpaces::RGB& lhs, const ColorSpaces::RGB& rhs) {
     return !(lhs == rhs);
 }
+
+#endif

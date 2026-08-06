@@ -1,3 +1,6 @@
+#ifndef GEOMETRY_TWO_DIMENSIONS_MODULE
+#define GEOMETRY_TWO_DIMENSIONS_MODULE
+
 #include<math.h>
 #include "geometry-containers.h"
 
@@ -123,3 +126,5 @@ public:
         return Q;
     }
 };
+
+#endif

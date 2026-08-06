@@ -1,3 +1,6 @@
+#ifndef MATHEMATICS_HELPERS_MODULE
+#define MATHEMATICS_HELPERS_MODULE
+
 #include<math.h>
 
 class Math{
@@ -7,3 +10,5 @@ public:
         return res*precision;
     }
 };
+
+#endif

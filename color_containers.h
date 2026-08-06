@@ -1,4 +1,5 @@
-// #include<string>
+#ifndef COLOR_SPACES_CONTAINERS_HEADER
+#define COLOR_SPACES_CONTAINERS_HEADER
 
 class ColorSpaces{
     public:
@@ -37,3 +38,5 @@ class ColorSpaces{
         float a=1.0;
     };
 };
+
+#endif

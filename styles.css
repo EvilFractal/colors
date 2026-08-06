@@ -1,3 +1,7 @@
+frame {
+    border-radius: 5px;
+}
+
 /* outline covers the focus indicator, border does not */
 .invalid {
     outline: 2px solid;

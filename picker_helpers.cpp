@@ -1,6 +1,7 @@
 #ifndef PICKER_HELPERS_MODULE
 #define PICKER_HELPERS_MODULE
 
+#include <iostream>
 #include "colorpicker.h"
 
 /* convert ColorSpaces::RGB color format to GdkRGBA */

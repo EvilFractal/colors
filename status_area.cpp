@@ -1,6 +1,7 @@
 #ifndef STATUS_AREA_MODULE
 #define STATUS_AREA_MODULE
 
+#include <vector>
 #include "colorpicker.h"
 #include "picker_helpers.cpp"
 

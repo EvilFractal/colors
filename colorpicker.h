@@ -4,14 +4,11 @@
 #include<gtk/gtk.h>
 #include<gdk/gdk.h>
 #include<cairo.h>
-#include<iostream>
 #include<math.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include<cstring>
 #include<any>
-#include<vector>
-#include<iomanip>
 #include "colorspaces.h"
 #include "geometry.h"
 

@@ -1,7 +1,5 @@
 # Some color utilities
 
-<i> disclaimer: I frankly have no idea what I'm doing regarding this whole thing's structure </i>
-
 ## ColorSpaces tools 
 
 ```<colorspaces.h>``` provides some colorspace tools:
@@ -14,7 +12,7 @@
     - <code>HSL {float h, float s, float l, float a=1.0} </code>
     - <code>HWB {float h, float w, float b, float a=1.0} </code>
 
-    accessible as ```ColorSpaces::<typename>```, all colors have a hidden floating-point alpha value one needs not be concerned about, for it's set to full coverage by default. However, shall it prove useful, the option of changing alpha remains.
+    all colors have a hidden floating-point alpha value one needs not be concerned about, for it's set to full coverage by default. However, shall it prove useful, the option of changing alpha remains.
 - ```Converter``` implemented in ```converter.cpp``` is a class of functions for color space conversions:<br>
     between color spaces:
     - ```HSL rgb_to_hsl (RGB *color)``` 
@@ -30,8 +28,6 @@
     - ```std::string hex (RGB8 *color)``` – note that it ignores the color's alpha value
     - ```RGB8 unhex (std::string *hex)```
 
-    all called by ```Converter.<function_name>(<args>)```
-
 everything should work when ```<colorspaces.h>``` gets included, as it does not have any dependencies outside of the standard c++ library
 
 ## ColorPicker utility
@@ -42,9 +38,12 @@ requires only gtk libraries (aside from ColorPicker's friends from here)<br>
 functionality:
 - hsl color picker
 - hsv color picker
-- \* hwb triangle-in-a-ring color picker
-- \* basic rgb/hex editor maybe?
-- \* eyedropper
+- hwb triangle-in-a-ring color picker
+- basic rgb/hex editor
+- eyedropper
+- statusbar with copyable ```hsv```, ```rgb``` and ```hex``` values of the color
+- \*palettes
+- \*color history
 
 \* not yet implemented
 
@@ -53,19 +52,18 @@ will contain various geometry utilities primarily needed by ColorPicker, but it 
 current features:
 - geometrical structures defined in ```<geometry-containers.h>```:
     - ```Point2 {float x, float y}``` – a two-dimensional point
-    - ```LineGeneral2 {float A, float B, float C}``` – a line with standard two-dimensional coordinates described by its general equation of form ```A*x + B*y + C = 0```
+    - ```LineGeneral2 {float A, float B, float C}``` – a line with standard two-dimensional coordinates described by its general equation of form <br>```A*x + B*y + C = 0```
 
-    accessible as ```Geometry::<typename>```
-- two-dimensional geometry utilities implemented in ```<geometry-2d.cpp>```:
+- two-dimensional ```Geocalc_2d``` geometry utilities implemented in ```<geometry-2d.cpp>```:
+
+    methods:
     - ```distance```
         1. ```float (Point2* P, LineGeneral2* k)``` – calculates the distance between a given point an a line in general form
         2. ```float (Point2* P, Point2* Q)``` – calculates the distance between two points
     - ```float f_radians (float fullcircle_fraction)``` – converts a floating-point fraction of a full circle, p.ex. a color's hue, into its equivalent in radians
     - ```Point2 rotate (Point2* P, float angle, Point2* Centre=Point0_0)``` – returns P's coordinates after the rotation by ```angle``` around the ```Centre``` point
-
-    all called by ```GeoCalc_2d.<function_name>(<args>)```
     
-    and constant:
+    and a constant:
     - ```Point2 Point0_0 {x = 0, y = 0}```
 
 ## Miscellaneous
